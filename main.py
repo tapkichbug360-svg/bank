@@ -741,7 +741,7 @@ def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                 save_tracking()
                 print(f"📝 Đã thêm đơn hàng {order_code} vào danh sách theo dõi")
                 
-                # ========== CHỈ GỬI CHO ADMIN (KHÔNG GỬI USER) ==========
+                # ========== 2. GỬI CHO ADMIN ==========
                 try:
                     admin_message = (
                         f"🆕 USER VỪA TẠO ĐƠN MỚI!\n\n"
@@ -757,7 +757,7 @@ def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                     
                     for admin_id in ADMIN_IDS:
                         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                        requests.post(url, data={'chat_id': admin_id, 'text': admin_message})
+                        requests.post(url, data={'chat_id': admin_id, 'text': admin_message}, timeout=10)
                         print(f"📨 Đã gửi thông báo tạo đơn đến admin {admin_id}")
                 except Exception as e:
                     print(f"❌ Lỗi gửi thông báo admin: {e}")
@@ -1782,55 +1782,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "noop":
         await query.answer()
 
-async def new_account(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    if is_banned(user_id):
-        await update.message.reply_text("🚫 Bạn đã bị khóa sử dụng bot!")
-        return
-
-    if not context.args:
-        await update.message.reply_text(
-            "❌ Thiếu tên!\n"
-            "📌 Cú pháp: /new TÊN BANK\n"
-            "✨ Ví dụ: /new TRAN VAN A MSB"
-        )
-        return
-
-    args = list(context.args)
-    if len(args) >= 2 and args[-1].upper() in ['MSB', 'BIDV']:
-        bank_name = args[-1].upper()
-        customer_name = ' '.join(args[:-1]).upper()
-    else:
-        bank_name = "MSB"
-        customer_name = ' '.join(args).upper()
-
-    status_msg = await update.message.reply_text(f"🔄 Đang tạo tài khoản {bank_name} cho {customer_name}...")
-
-    def process():
-        return create_virtual_account(customer_name, bank_name, user_id)
-
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        future = executor.submit(process)
-        result = future.result(timeout=30)
-
-    if result and result.get('success'):
-        # XÓA TIN "ĐANG XỬ LÝ"
-        await status_msg.delete()
-        # GỬI TIN THÀNH CÔNG CHO USER
-        message = (
-            f"*✅ TẠO THÀNH CÔNG!*\n\n"
-            f"*👤 Tên:* {result['name']}\n"
-            f"*🏦 Ngân hàng:* {result['bank']}\n"
-            f"*💳 STK:* `{result['stk']}`\n"
-            f"*🔢 Mã đơn:* `{result['order_code']}`\n\n"
-            f"*💡 Bot sẽ tự động thông báo khi có tiền chuyển đến!*"
-        )
-        await update.message.reply_text(message, parse_mode='Markdown', reply_markup=get_back_menu())
-    else:
-        error = result.get('error', 'Lỗi không xác định') if result else 'Lỗi kết nối'
-        await status_msg.edit_text(f"❌ TẠO THẤT BẠI!\n\n⚠️ Lỗi: {error}", reply_markup=get_back_menu())
 # ========== XỬ LÝ TIN NHẮN THƯỜNG ==========
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -2187,7 +2138,6 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
     
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("new", new_account))
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CommandHandler("duyet", duyet_command))  # THÊM

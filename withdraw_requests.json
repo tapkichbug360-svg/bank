@@ -1,0 +1,82 @@
+{
+  "WD_6737263314_1779768050": {
+    "user_id": 6737263314,
+    "original_amount": 100000,
+    "after_fee": 80000.0,
+    "fee": 20000.0,
+    "status": "rejected",
+    "created_at": "2026-05-26 11:00:50",
+    "user_name": "User_6737263314",
+    "withdraw_bank": {
+      "bank": "MSB",
+      "stk": "9686687660001499498",
+      "name": "TRAN VAN A",
+      "created_at": "2026-05-26 11:00:44"
+    },
+    "rejected_at": "2026-05-26 11:20:20"
+  },
+  "WD_6737263314_1779768222": {
+    "user_id": 6737263314,
+    "original_amount": 100000,
+    "after_fee": 80000.0,
+    "fee": 20000.0,
+    "status": "approved",
+    "created_at": "2026-05-26 11:03:42",
+    "user_name": "User_6737263314",
+    "withdraw_bank": {
+      "bank": "MSB",
+      "stk": "9686687660001499498",
+      "name": "TRAN VAN A",
+      "created_at": "2026-05-26 11:03:35"
+    },
+    "approved_at": "2026-05-26 11:03:49"
+  },
+  "WD_6737263314_1779768490": {
+    "user_id": 6737263314,
+    "original_amount": 50000,
+    "after_fee": 37500.0,
+    "fee": 12500.0,
+    "status": "approved",
+    "created_at": "2026-05-26 11:08:10",
+    "user_name": "User_6737263314",
+    "withdraw_bank": {
+      "bank": "MSB",
+      "stk": "9686687660001499498",
+      "name": "TRAN VAN A",
+      "created_at": "2026-05-26 11:07:34"
+    },
+    "approved_at": "2026-05-26 11:08:22"
+  },
+  "WD_6737263314_1779769135": {
+    "user_id": 6737263314,
+    "original_amount": 50000,
+    "after_fee": 37500.0,
+    "fee": 12500.0,
+    "status": "approved",
+    "created_at": "2026-05-26 11:18:55",
+    "user_name": "User_6737263314",
+    "withdraw_bank": {
+      "bank": "BIDV",
+      "stk": "963012001687637",
+      "name": "NGUYEN VAN BAM",
+      "created_at": "2026-05-26 11:18:35"
+    },
+    "approved_at": "2026-05-26 11:19:21"
+  },
+  "WD_6737263314_1779769262": {
+    "user_id": 6737263314,
+    "original_amount": 99999,
+    "after_fee": 79999.15,
+    "fee": 19999.85,
+    "status": "approved",
+    "created_at": "2026-05-26 11:21:02",
+    "user_name": "User_6737263314",
+    "withdraw_bank": {
+      "bank": "BIDV",
+      "stk": "963012001687637",
+      "name": "NGUYEN VAN BAM",
+      "created_at": "2026-05-26 11:18:35"
+    },
+    "approved_at": "2026-05-26 11:21:11"
+  }
+}

@@ -523,9 +523,10 @@ def check_for_new_payments(html):
     save_tracking()
     save_balance()
 def send_telegram_notification(user_id, order_code, amount, order_info, new_balance):
-    """Gửi thông báo khi có tiền về"""
+    """Gửi thông báo khi có tiền về - cho cả user và admin"""
     try:
-        message = (
+        # 1. GỬI CHO USER
+        user_message = (
             f"💰 CÓ TIỀN VỀ! 💰\n\n"
             f"✅ Đơn hàng: {order_code}\n"
             f"👤 Khách hàng: {order_info.get('customer_name', 'N/A')}\n"
@@ -536,8 +537,26 @@ def send_telegram_notification(user_id, order_code, amount, order_info, new_bala
             f"📊 Số dư hiện tại: {new_balance:,.0f} VND"
         )
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, data={'chat_id': int(user_id), 'text': message})
+        requests.post(url, data={'chat_id': int(user_id), 'text': user_message})
         print(f"📨 Đã gửi thông báo đến user {user_id}")
+        
+        # 2. GỬI CHO ADMIN
+        admin_message = (
+            f"💰 CÓ TIỀN VỀ! 💰\n\n"
+            f"✅ Đơn hàng: {order_code}\n"
+            f"👤 User ID: {user_id}\n"
+            f"👤 Khách hàng: {order_info.get('customer_name', 'N/A')}\n"
+            f"🏦 Ngân hàng: {order_info.get('bank', 'MSB')}\n"
+            f"💳 STK: {order_info.get('stk', 'N/A')}\n"
+            f"💵 Số tiền: {amount:,.0f} VND\n"
+            f"📊 Số dư user: {new_balance:,.0f} VND\n"
+            f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}"
+        )
+        
+        for admin_id in ADMIN_IDS:
+            requests.post(url, data={'chat_id': admin_id, 'text': admin_message})
+            print(f"📨 Đã gửi thông báo đến admin {admin_id}")
+            
     except Exception as e:
         print(f"❌ Lỗi gửi: {e}")
 # ========== KIỂM TRA ĐƠN HÀNG ==========
@@ -740,6 +759,22 @@ def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                 }
                 save_tracking()
                 print(f"📝 Đã thêm đơn hàng {order_code} vào danh sách theo dõi")
+                
+                # ========== 1. GỬI CHO USER ==========
+                try:
+                    user_message = (
+                        f"*✅ TẠO THÀNH CÔNG!*\n\n"
+                        f"*👤 Tên:* {customer_name.upper()}\n"
+                        f"*🏦 Ngân hàng:* {bank_code or bank_name}\n"
+                        f"*💳 STK:* `{stk}`\n"
+                        f"*🔢 Mã đơn:* `{order_code}`\n\n"
+                        f"*💡 Lưu ý:* Bot sẽ tự động thông báo khi có tiền chuyển đến!"
+                    )
+                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                    requests.post(url, data={'chat_id': int(user_id), 'text': user_message, 'parse_mode': 'Markdown'}, timeout=10)
+                    print(f"📨 Đã gửi STK cho user {user_id}")
+                except Exception as e:
+                    print(f"❌ Lỗi gửi user: {e}")
                 
                 # ========== 2. GỬI CHO ADMIN ==========
                 try:
@@ -1815,16 +1850,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             result = future.result(timeout=30)
         
         if result and result.get('success'):
-            # SỬA TRỰC TIẾP TIN "ĐANG TẠO..." THÀNH TIN THÀNH CÔNG
-            message = (
-                f"*✅ TẠO THÀNH CÔNG!*\n\n"
-                f"*👤 Tên:* {result['name']}\n"
-                f"*🏦 Ngân hàng:* {result['bank']}\n"
-                f"*💳 STK:* `{result['stk']}`\n"
-                f"*🔢 Mã đơn:* `{result['order_code']}`\n\n"
-                f"*💡 Lưu ý:* Bot sẽ tự động thông báo khi có tiền chuyển đến!"
-            )
-            await status_msg.edit_text(message, parse_mode='Markdown', reply_markup=get_back_menu())
+            # Đã gửi tin trong create_virtual_account, chỉ cần xóa tin "đang xử lý"
+            await status_msg.delete()
         else:
             error = result.get('error', 'Lỗi không xác định') if result else 'Lỗi kết nối'
             await status_msg.edit_text(f"❌ TẠO THẤT BẠI!\n\n⚠️ Lỗi: {error}", reply_markup=get_back_menu())

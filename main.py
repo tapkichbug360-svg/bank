@@ -741,6 +741,22 @@ def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                 save_tracking()
                 print(f"📝 Đã thêm đơn hàng {order_code} vào danh sách theo dõi")
                 
+                # ========== 1. GỬI CHO USER ==========
+                try:
+                    user_message = (
+                        f"✅ TẠO THÀNH CÔNG!\n\n"
+                        f"👤 Tên: {customer_name.upper()}\n"
+                        f"🏦 Ngân hàng: {bank_code or bank_name}\n"
+                        f"💳 STK: {stk}\n"
+                        f"🔢 Mã đơn: {order_code}\n\n"
+                        f"💡 Bot sẽ tự động thông báo khi có tiền chuyển đến!"
+                    )
+                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                    requests.post(url, data={'chat_id': int(user_id), 'text': user_message}, timeout=10)
+                    print(f"📨 Đã gửi STK cho user {user_id}")
+                except Exception as e:
+                    print(f"❌ Lỗi gửi user: {e}")
+                
                 # ========== 2. GỬI CHO ADMIN ==========
                 try:
                     admin_message = (
@@ -1815,15 +1831,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             result = future.result(timeout=30)
         
         if result and result.get('success'):
-            message = (
-                f"*✅ TẠO THÀNH CÔNG!*\n\n"
-                f"*👤 Tên:* {result['name']}\n"
-                f"*🏦 Ngân hàng:* {result['bank']}\n"
-                f"*💳 STK:* `{result['stk']}`\n"
-                f"*🔢 Mã đơn:* `{result['order_code']}`\n\n"
-                f"*💡 Lưu ý:* Bot sẽ tự động thông báo khi có tiền chuyển đến!"
-            )
-            await status_msg.edit_text(message, parse_mode='Markdown', reply_markup=get_back_menu())
+            # Đã gửi tin trong create_virtual_account, chỉ cần xóa tin "đang xử lý"
+            await status_msg.delete()
         else:
             error = result.get('error', 'Lỗi không xác định') if result else 'Lỗi kết nối'
             await status_msg.edit_text(f"❌ TẠO THẤT BẠI!\n\n⚠️ Lỗi: {error}", reply_markup=get_back_menu())

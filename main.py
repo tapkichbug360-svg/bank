@@ -690,7 +690,7 @@ def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
             'bank_name': bank_name,
             'order_code': order_code,
             'napas_display_name': customer_name.upper(),
-            'amount': '1000000',
+            'amount': '1000',
             'collaborator_id': '1315',
             'expires_in_days': '1'
         }
@@ -753,7 +753,7 @@ def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                     'customer_name': customer_name.upper(),
                     'bank': bank_code or bank_name,
                     'stk': stk,
-                    'amount': 1000000,
+                    'amount': 1000,
                     'status': 'pending',
                     'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 }

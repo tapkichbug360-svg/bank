@@ -7,6 +7,7 @@ import threading
 import json
 import os
 import asyncio
+from telegram import Bot
 from datetime import datetime, timedelta
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -481,42 +482,112 @@ async def chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"❌ Thất bại: {fail_count} user\n"
         f"📝 Nội dung: {caption if caption else '(không có caption)'}"
     )
-def check_orders_loop():
+async def check_orders_loop():
     global tracking_orders, user_balance, is_logged_in
     
     while True:
         try:
             if not is_logged_in:
                 print("⚠️ Chưa đăng nhập, đang đăng nhập lại...")
-                login_and_get_cookies()
-                time.sleep(5)
+                # Chạy login trong thread để không block
+                await asyncio.to_thread(login_and_get_cookies)
+                await asyncio.sleep(5)
                 continue
             
-            # TĂNG TIMEOUT LÊN 60 GIÂY
-            response = session.get(f"{BASE_URL}/orders", timeout=60)
+            # Chạy request trong thread để không block event loop
+            response = await asyncio.to_thread(session.get, f"{BASE_URL}/orders", timeout=60)
             
             if response.status_code == 200:
                 html = response.text
                 print(f"✅ [{datetime.now().strftime('%H:%M:%S')}] Đã lấy dữ liệu orders")
-                check_for_new_payments(html)
+                # Xử lý thanh toán song song
+                await check_for_new_payments_async(html)
             elif response.status_code == 302:
                 print("⚠️ Session hết hạn, đăng nhập lại...")
                 is_logged_in = False
             else:
                 print(f"⚠️ Lỗi {response.status_code}")
                 
-        except requests.exceptions.Timeout:
+        except asyncio.TimeoutError:
             print(f"⚠️ [{datetime.now().strftime('%H:%M:%S')}] Timeout, thử lại sau 15 giây...")
-            time.sleep(15)
-        except requests.exceptions.ConnectionError as e:
-            print(f"⚠️ Lỗi kết nối: {e}, thử lại sau 15 giây...")
-            time.sleep(15)
+            await asyncio.sleep(15)
         except Exception as e:
             print(f"❌ Lỗi: {e}")
-            time.sleep(15)
+            await asyncio.sleep(15)
         
-        time.sleep(10)  # Chờ 10 giây rồi thử lại
-
+        await asyncio.sleep(10)  # Chờ 10 giây rồi thử lại
+async def check_for_new_payments_async(html):
+    global tracking_orders, user_balance
+    
+    # Tìm tất cả đơn cần xử lý
+    pending_tasks = []
+    
+    for order_code, order_info in tracking_orders.items():
+        if order_info.get('status') == 'paid':
+            continue
+        
+        if order_code not in html:
+            continue
+        
+        # Tìm số tiền
+        pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
+        pattern += r'<td data-label="Số tiền">([\d.]+)</td>'
+        match = re.search(pattern, html, re.DOTALL)
+        
+        if match:
+            amount_str = match.group(1).replace('.', '')
+            actual_amount = int(amount_str)
+            pending_tasks.append((order_code, order_info, actual_amount))
+    
+    # Xử lý song song nhiều đơn cùng lúc
+    if pending_tasks:
+        tasks = [process_payment(order_code, order_info, actual_amount) 
+                 for order_code, order_info, actual_amount in pending_tasks]
+        await asyncio.gather(*tasks)
+    
+    save_tracking()
+    save_balance()
+async def process_payment(order_code, order_info, actual_amount):
+    global tracking_orders, user_balance
+    
+    user_id = str(order_info['user_id'])
+    
+    # Khởi tạo nếu chưa có
+    if user_id not in user_balance:
+        user_balance[user_id] = {
+            'balance': 0,
+            'total_orders': 0,
+            'last_update': '',
+            'history': [],
+            'withdraw_history': []
+        }
+    
+    old_balance = user_balance[user_id]['balance']
+    new_balance = old_balance + actual_amount
+    
+    # Cập nhật số dư
+    user_balance[user_id]['balance'] = new_balance
+    user_balance[user_id]['total_orders'] += 1
+    user_balance[user_id]['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Lưu lịch sử
+    user_balance[user_id]['history'].append({
+        'order_code': order_code,
+        'amount': actual_amount,
+        'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'customer_name': order_info.get('customer_name', 'N/A')
+    })
+    
+    # Cập nhật trạng thái đơn hàng
+    tracking_orders[order_code]['status'] = 'paid'
+    tracking_orders[order_code]['paid_amount'] = actual_amount
+    tracking_orders[order_code]['paid_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    print(f"💰 {order_code} - {actual_amount:,} VND")
+    print(f"   User {user_id}: {old_balance:,} → {new_balance:,} VND")
+    
+    # Gửi thông báo bất đồng bộ
+    await send_telegram_notification_async(user_id, order_code, actual_amount, order_info, new_balance)
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -590,14 +661,14 @@ def check_for_new_payments(html):
             print(f"   User {user_id}: {old_balance:,} → {new_balance:,} VND")
             
             # Gửi thông báo
-            send_telegram_notification(user_id, order_code, actual_amount, order_info, new_balance)
+            asyncio.create_task(send_telegram_notification_async(user_id, order_code, actual_amount, order_info, new_balance))
     
     save_tracking()
     save_balance()
-def send_telegram_notification(user_id, order_code, amount, order_info, new_balance):
-    """Gửi thông báo khi có tiền về - cho cả user và admin"""
+async def send_telegram_notification_async(user_id, order_code, amount, order_info, new_balance):
+    """Gửi thông báo khi có tiền về - bất đồng bộ, gửi song song"""
     try:
-        # 1. GỬI CHO USER
+        # 1. TIN NHẮN CHO USER
         user_message = (
             f"💰 CÓ TIỀN VỀ! 💰\n\n"
             f"✅ Đơn hàng: {order_code}\n"
@@ -608,11 +679,8 @@ def send_telegram_notification(user_id, order_code, amount, order_info, new_bala
             f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n\n"
             f"📊 Số dư hiện tại: {new_balance:,.0f} VND"
         )
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, data={'chat_id': int(user_id), 'text': user_message})
-        print(f"📨 Đã gửi thông báo đến user {user_id}")
         
-        # 2. GỬI CHO ADMIN
+        # 2. TIN NHẮN CHO ADMIN
         admin_message = (
             f"💰 CÓ TIỀN VỀ! 💰\n\n"
             f"✅ Đơn hàng: {order_code}\n"
@@ -625,9 +693,21 @@ def send_telegram_notification(user_id, order_code, amount, order_info, new_bala
             f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}"
         )
         
+        # 3. TẠO BOT VÀ GỬI ĐỒNG THỜI
+        bot = Bot(token=BOT_TOKEN)
+        tasks = []
+        
+        # Gửi cho user
+        tasks.append(bot.send_message(chat_id=int(user_id), text=user_message))
+        
+        # Gửi cho tất cả admin
         for admin_id in ADMIN_IDS:
-            requests.post(url, data={'chat_id': admin_id, 'text': admin_message})
-            print(f"📨 Đã gửi thông báo đến admin {admin_id}")
+            tasks.append(bot.send_message(chat_id=admin_id, text=admin_message))
+        
+        # GỬI TẤT CẢ CÙNG LÚC
+        await asyncio.gather(*tasks)
+        
+        print(f"📨 Đã gửi thông báo đến user {user_id} và {len(ADMIN_IDS)} admin")
             
     except Exception as e:
         print(f"❌ Lỗi gửi: {e}")
@@ -731,7 +811,7 @@ def start_checking_loop():
         time.sleep(CHECK_INTERVAL)
 
 # ========== HÀM TẠO TÀI KHOẢN ẢO ==========
-def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
+async def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
     global session, csrf_token, is_logged_in
     
     print("="*60)
@@ -832,7 +912,7 @@ def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                 save_tracking()
                 print(f"📝 Đã thêm đơn hàng {order_code} vào danh sách theo dõi")
                 
-                # ========== 1. GỬI CHO USER ==========
+                # ========== 1. GỬI CHO USER (BẤT ĐỒNG BỘ) ==========
                 try:
                     user_message = (
                         f"*✅ TẠO THÀNH CÔNG!*\n\n"
@@ -842,13 +922,13 @@ def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                         f"*🔢 Mã đơn:* `{order_code}`\n\n"
                         f"*💡 Lưu ý:* Bot sẽ tự động thông báo khi có tiền chuyển đến!"
                     )
-                    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                    requests.post(url, data={'chat_id': int(user_id), 'text': user_message, 'parse_mode': 'Markdown'}, timeout=10)
+                    bot = Bot(token=BOT_TOKEN)
+                    await bot.send_message(chat_id=int(user_id), text=user_message, parse_mode='Markdown')
                     print(f"📨 Đã gửi STK cho user {user_id}")
                 except Exception as e:
                     print(f"❌ Lỗi gửi user: {e}")
                 
-                # ========== 2. GỬI CHO ADMIN ==========
+                # ========== 2. GỬI CHO ADMIN (BẤT ĐỒNG BỘ, SONG SONG) ==========
                 try:
                     admin_message = (
                         f"🆕 USER VỪA TẠO ĐƠN MỚI!\n\n"
@@ -857,15 +937,15 @@ def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                         f"🏦 Ngân hàng: {bank_code or bank_name}\n"
                         f"💳 STK: {stk}\n"
                         f"🔢 Mã đơn: {order_code}\n"
-                        f"💰 Số tiền: 1,000,000 VND\n"
-                        f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n\n"
-                        f"📌 Trạng thái: Chờ thanh toán"
                     )
                     
+                    bot = Bot(token=BOT_TOKEN)
+                    tasks = []
                     for admin_id in ADMIN_IDS:
-                        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                        requests.post(url, data={'chat_id': admin_id, 'text': admin_message}, timeout=10)
-                        print(f"📨 Đã gửi thông báo tạo đơn đến admin {admin_id}")
+                        tasks.append(bot.send_message(chat_id=admin_id, text=admin_message))
+                    
+                    await asyncio.gather(*tasks)
+                    print(f"📨 Đã gửi thông báo tạo đơn đến {len(ADMIN_IDS)} admin")
                 except Exception as e:
                     print(f"❌ Lỗi gửi thông báo admin: {e}")
             
@@ -909,7 +989,6 @@ def send_notification_to_admin(user_id, customer_name, bank_name, stk, order_cod
             f"🏦 Ngân hàng: {bank_name}\n"
             f"💳 STK: {stk}\n"
             f"🔢 Mã đơn: {order_code}\n"
-            f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n\n"
         )
         
         # Gửi cho tất cả admin
@@ -1913,13 +1992,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         status_msg = await update.message.reply_text(f"🔄 Đang tạo tài khoản {bank} cho {customer_name}...")
         
-        def process():
-            return create_virtual_account(customer_name, bank, user_id)  # TRUYỀN user_id
-        
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(process)
-            result = future.result(timeout=30)
+        # Chạy bất đồng bộ, không chờ
+        asyncio.create_task(process_and_reply(status_msg, customer_name, bank, user_id))
+        return
         
         if result and result.get('success'):
             # Đã gửi tin trong create_virtual_account, chỉ cần xóa tin "đang xử lý"
@@ -2090,7 +2165,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("❌ User ID không hợp lệ!", reply_markup=get_back_menu())
         return
-
+async def process_and_reply(status_msg, customer_name, bank, user_id):
+    # Gọi trực tiếp async function
+    result = await create_virtual_account(customer_name, bank, user_id)
+    
+    if result and result.get('success'):
+        await status_msg.delete()
+    else:
+        error = result.get('error', 'Lỗi không xác định') if result else 'Lỗi kết nối'
+        await status_msg.edit_text(f"❌ TẠO THẤT BẠI!\n\n⚠️ Lỗi: {error}", reply_markup=get_back_menu())
 def get_all_history():
     """Lấy tất cả lịch sử giao dịch"""
     all_history = []

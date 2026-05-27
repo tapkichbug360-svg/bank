@@ -547,34 +547,75 @@ async def check_for_new_payments_async(html):
     # Lấy danh sách order_code từ HTML
     order_codes_in_html = set(re.findall(r'ORD-[A-Z0-9]{25}', html))
     
-    pending_tasks = []
-    
+    # 1. KIỂM TRA TRONG DANH SÁCH ORDERS
     for order_code, order_info in tracking_orders.items():
         if order_info.get('status') == 'paid':
             continue
         
         actual_amount = None
         
-        # Chỉ tìm trong danh sách orders, KHÔNG CHECK TRANG CHI TIẾT
         if order_code in html:
             pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
-            pattern += r'<td data-label="Số tiền">([\d.]+)</td>'
+            pattern += r'<td data-label="Số tiền">([\d.]+)</tr>'
             match = re.search(pattern, html, re.DOTALL)
             if match:
                 amount_str = match.group(1).replace('.', '')
                 actual_amount = int(amount_str)
-        
-        if actual_amount is not None and actual_amount > 0:
-            pending_tasks.append((order_code, order_info, actual_amount))
+                await process_payment(order_code, order_info, actual_amount)
     
-    # Xử lý song song nhiều đơn cùng lúc
-    if pending_tasks:
-        tasks = [process_payment(order_code, order_info, actual_amount) 
-                 for order_code, order_info, actual_amount in pending_tasks]
-        await asyncio.gather(*tasks)
+    # 2. KIỂM TRA TRANG CHI TIẾT CHO ĐƠN CHƯA XỬ LÝ
+    for order_code, order_info in tracking_orders.items():
+        if order_info.get('status') == 'paid':
+            continue
+        
+        # Kiểm tra trang chi tiết
+        detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"
+        try:
+            detail_response = await asyncio.to_thread(session.get, detail_url, timeout=30)
+            if detail_response.status_code == 200:
+                detail_html = detail_response.text
+                
+                # Tìm số tiền trong trang chi tiết
+                amount_match = re.search(r'Số tiền.*?(\d{1,3}(?:,\d{3})*)\s*đ', detail_html, re.DOTALL)
+                if not amount_match:
+                    amount_match = re.search(r'(\d{1,3}(?:,\d{3})*)\s*đ', detail_html)
+                
+                if amount_match:
+                    amount_str = amount_match.group(1).replace(',', '')
+                    actual_amount = int(amount_str)
+                    if actual_amount > 0:
+                        print(f"🔍 Phát hiện đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
+                        await process_payment(order_code, order_info, actual_amount)
+        except Exception as e:
+            print(f"⚠️ Lỗi check chi tiết {order_code}: {e}")
     
     save_tracking()
     save_balance()
+async def check_single_order(order_code, order_info):
+    """Kiểm tra trạng thái đơn hàng qua trang chi tiết"""
+    detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"
+    try:
+        detail_response = await asyncio.to_thread(session.get, detail_url, timeout=30)
+        if detail_response.status_code == 200:
+            detail_html = detail_response.text
+            
+            # Kiểm tra nếu có trạng thái ACTIVE và số tiền
+            if 'ACTIVE' in detail_html or 'Xác nhận' in detail_html:
+                # Tìm số tiền
+                amount_match = re.search(r'Số tiền.*?(\d{1,3}(?:,\d{3})*)\s*đ', detail_html, re.DOTALL)
+                if not amount_match:
+                    amount_match = re.search(r'(\d{1,3}(?:,\d{3})*)\s*đ', detail_html)
+                
+                if amount_match:
+                    amount_str = amount_match.group(1).replace(',', '')
+                    actual_amount = int(amount_str)
+                    if actual_amount > 0:
+                        print(f"💰 Phát hiện đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
+                        await process_payment(order_code, order_info, actual_amount)
+                        return True
+    except Exception as e:
+        print(f"⚠️ Lỗi check đơn {order_code}: {e}")
+    return False
 async def process_payment(order_code, order_info, actual_amount):
     global tracking_orders, user_balance
     

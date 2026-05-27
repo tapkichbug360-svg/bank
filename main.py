@@ -555,7 +555,7 @@ async def check_for_new_payments_async(html):
         
         actual_amount = None
         
-        # Cách 1: Tìm trong danh sách orders
+        # Chỉ tìm trong danh sách orders, KHÔNG CHECK TRANG CHI TIẾT
         if order_code in html:
             pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
             pattern += r'<td data-label="Số tiền">([\d.]+)</td>'
@@ -563,29 +563,6 @@ async def check_for_new_payments_async(html):
             if match:
                 amount_str = match.group(1).replace('.', '')
                 actual_amount = int(amount_str)
-        
-        # Cách 2: Nếu không thấy trong danh sách, kiểm tra trực tiếp trang chi tiết
-        if actual_amount is None:
-            detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"
-            try:
-                detail_response = await asyncio.to_thread(session.get, detail_url, timeout=30)
-                if detail_response.status_code == 200:
-                    detail_html = detail_response.text
-                    # Tìm số tiền trong trang chi tiết (dạng 2.000 đ)
-                    amount_match = re.search(r'Số tiền.*?(\d{1,3}(?:,\d{3})*)\s*đ', detail_html, re.DOTALL)
-                    if amount_match:
-                        amount_str = amount_match.group(1).replace(',', '')
-                        actual_amount = int(amount_str)
-                        print(f"🔍 Tìm thấy đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
-                    else:
-                        # Thử pattern khác
-                        amount_match2 = re.search(r'(\d{1,3}(?:,\d{3})*)\s*đ', detail_html)
-                        if amount_match2:
-                            amount_str = amount_match2.group(1).replace(',', '')
-                            actual_amount = int(amount_str)
-                            print(f"🔍 Tìm thấy đơn {order_code} qua trang chi tiết (pattern2): {actual_amount:,} VND")
-            except Exception as e:
-                print(f"⚠️ Lỗi check chi tiết {order_code}: {e}")
         
         if actual_amount is not None and actual_amount > 0:
             pending_tasks.append((order_code, order_info, actual_amount))
@@ -670,30 +647,14 @@ async def check_for_new_payments(html):
         
         actual_amount = None
         
-        # Cách 1: Tìm trong danh sách orders
+        # CHỈ TÌM TRONG DANH SÁCH ORDERS (BỎ CÁCH 2)
         if order_code in html:
             pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
-            pattern += r'<td data-label="Số tiền">([\d.]+)</td>'
+            pattern += r'<td data-label="Số tiền">([\d.]+)</table>'
             match = re.search(pattern, html, re.DOTALL)
             if match:
                 amount_str = match.group(1).replace('.', '')
                 actual_amount = int(amount_str)
-        
-        # Cách 2: Nếu không thấy trong danh sách, kiểm tra trực tiếp trang chi tiết
-        if actual_amount is None:
-            detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"
-            try:
-                detail_response = await asyncio.to_thread(session.get, detail_url, timeout=30)
-                if detail_response.status_code == 200:
-                    detail_html = detail_response.text
-                    # Tìm số tiền trong trang chi tiết
-                    amount_match = re.search(r'Số tiền.*?(\d{1,3}(?:,\d{3})*)\s*đ', detail_html, re.DOTALL)
-                    if amount_match:
-                        amount_str = amount_match.group(1).replace(',', '')
-                        actual_amount = int(amount_str)
-                        print(f"🔍 Tìm thấy đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
-            except Exception as e:
-                print(f"⚠️ Lỗi check chi tiết {order_code}: {e}")
         
         if actual_amount is not None and actual_amount > 0:
             user_id = str(order_info['user_id'])
@@ -2302,10 +2263,11 @@ def main():
     if not login_and_get_cookies():
         print("❌ Không thể đăng nhập!")
         return
-    asyncio.create_task(refresh_session_periodically())
-    # Khởi động thread kiểm tra đơn hàng mỗi 10 giây
-    check_thread = threading.Thread(target=check_orders_loop, daemon=True)
-    check_thread.start()
+    # Chạy check_orders_loop trong event loop riêng
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.create_task(check_orders_loop())
+    # Không cần loop.run_forever() vì bot đã có event loop riêng
     
     # Tạo bot application
     app = Application.builder().token(BOT_TOKEN).build()

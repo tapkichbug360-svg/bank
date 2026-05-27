@@ -519,24 +519,50 @@ async def check_orders_loop():
 async def check_for_new_payments_async(html):
     global tracking_orders, user_balance
     
-    # Tìm tất cả đơn cần xử lý
+    # Lấy danh sách order_code từ HTML
+    order_codes_in_html = set(re.findall(r'ORD-[A-Z0-9]{25}', html))
+    
     pending_tasks = []
     
     for order_code, order_info in tracking_orders.items():
         if order_info.get('status') == 'paid':
             continue
         
-        if order_code not in html:
-            continue
+        actual_amount = None
         
-        # Tìm số tiền
-        pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
-        pattern += r'<td data-label="Số tiền">([\d.]+)</td>'
-        match = re.search(pattern, html, re.DOTALL)
+        # Cách 1: Tìm trong danh sách orders
+        if order_code in html:
+            pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
+            pattern += r'<td data-label="Số tiền">([\d.]+)</td>'
+            match = re.search(pattern, html, re.DOTALL)
+            if match:
+                amount_str = match.group(1).replace('.', '')
+                actual_amount = int(amount_str)
         
-        if match:
-            amount_str = match.group(1).replace('.', '')
-            actual_amount = int(amount_str)
+        # Cách 2: Nếu không thấy trong danh sách, kiểm tra trực tiếp trang chi tiết
+        if actual_amount is None:
+            detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"
+            try:
+                detail_response = await asyncio.to_thread(session.get, detail_url, timeout=30)
+                if detail_response.status_code == 200:
+                    detail_html = detail_response.text
+                    # Tìm số tiền trong trang chi tiết (dạng 2.000 đ)
+                    amount_match = re.search(r'Số tiền.*?(\d{1,3}(?:,\d{3})*)\s*đ', detail_html, re.DOTALL)
+                    if amount_match:
+                        amount_str = amount_match.group(1).replace(',', '')
+                        actual_amount = int(amount_str)
+                        print(f"🔍 Tìm thấy đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
+                    else:
+                        # Thử pattern khác
+                        amount_match2 = re.search(r'(\d{1,3}(?:,\d{3})*)\s*đ', detail_html)
+                        if amount_match2:
+                            amount_str = amount_match2.group(1).replace(',', '')
+                            actual_amount = int(amount_str)
+                            print(f"🔍 Tìm thấy đơn {order_code} qua trang chi tiết (pattern2): {actual_amount:,} VND")
+            except Exception as e:
+                print(f"⚠️ Lỗi check chi tiết {order_code}: {e}")
+        
+        if actual_amount is not None and actual_amount > 0:
             pending_tasks.append((order_code, order_info, actual_amount))
     
     # Xử lý song song nhiều đơn cùng lúc
@@ -607,23 +633,44 @@ def create_session_with_retry():
     return session
 
 # Trong login_and_get_cookies, thay session = create_session_with_retry()
-def check_for_new_payments(html):
+async def check_for_new_payments(html):
     global tracking_orders, user_balance
+    
+    # Lấy danh sách order_code từ HTML
+    order_codes_in_html = set(re.findall(r'ORD-[A-Z0-9]{25}', html))
     
     for order_code, order_info in tracking_orders.items():
         if order_info.get('status') == 'paid':
             continue
         
-        if order_code not in html:
-            continue
+        actual_amount = None
         
-        pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
-        pattern += r'<td data-label="Số tiền">([\d.]+)</td>'
+        # Cách 1: Tìm trong danh sách orders
+        if order_code in html:
+            pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
+            pattern += r'<td data-label="Số tiền">([\d.]+)</td>'
+            match = re.search(pattern, html, re.DOTALL)
+            if match:
+                amount_str = match.group(1).replace('.', '')
+                actual_amount = int(amount_str)
         
-        match = re.search(pattern, html, re.DOTALL)
-        if match:
-            amount_str = match.group(1).replace('.', '')
-            actual_amount = int(amount_str)
+        # Cách 2: Nếu không thấy trong danh sách, kiểm tra trực tiếp trang chi tiết
+        if actual_amount is None:
+            detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"
+            try:
+                detail_response = await asyncio.to_thread(session.get, detail_url, timeout=30)
+                if detail_response.status_code == 200:
+                    detail_html = detail_response.text
+                    # Tìm số tiền trong trang chi tiết
+                    amount_match = re.search(r'Số tiền.*?(\d{1,3}(?:,\d{3})*)\s*đ', detail_html, re.DOTALL)
+                    if amount_match:
+                        amount_str = amount_match.group(1).replace(',', '')
+                        actual_amount = int(amount_str)
+                        print(f"🔍 Tìm thấy đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
+            except Exception as e:
+                print(f"⚠️ Lỗi check chi tiết {order_code}: {e}")
+        
+        if actual_amount is not None and actual_amount > 0:
             user_id = str(order_info['user_id'])
             
             # Khởi tạo nếu chưa có
@@ -711,77 +758,6 @@ async def send_telegram_notification_async(user_id, order_code, amount, order_in
             
     except Exception as e:
         print(f"❌ Lỗi gửi: {e}")
-# ========== KIỂM TRA ĐƠN HÀNG ==========
-def check_all_orders():
-    global tracking_orders, user_balance
-    
-    if not tracking_orders:
-        return
-    
-    print(f"\n🔍 [{datetime.now().strftime('%H:%M:%S')}] Đang kiểm tra...")
-    
-    try:
-        response = session.get(f"{BASE_URL}/orders", timeout=15)
-        if response.status_code != 200:
-            return
-        html = response.text
-    except Exception as e:
-        print(f"❌ Lỗi: {e}")
-        return
-    
-    # Tạo event loop để chạy async function
-    import asyncio
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    for order_code, order_info in tracking_orders.items():
-        if order_info.get('status') == 'paid':
-            continue
-        
-        if order_code not in html:
-            continue
-        
-        pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
-        pattern += r'<td data-label="Số tiền">([\d.]+)</table>'
-        
-        match = re.search(pattern, html, re.DOTALL)
-        if match:
-            amount_str = match.group(1).replace('.', '')
-            actual_amount = int(amount_str)
-            
-            user_id = str(order_info['user_id'])
-            
-            if user_id not in user_balance:
-                user_balance[user_id] = {'balance': 0, 'total_orders': 0, 'last_update': '', 'history': [], 'withdraw_history': []}
-            
-            old_balance = user_balance[user_id]['balance']
-            new_balance = old_balance + actual_amount
-            
-            user_balance[user_id]['balance'] = new_balance
-            user_balance[user_id]['total_orders'] += 1
-            user_balance[user_id]['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            user_balance[user_id]['history'].append({
-                'order_code': order_code,
-                'amount': actual_amount,
-                'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'customer_name': order_info.get('customer_name', 'N/A')
-            })
-            
-            tracking_orders[order_code]['status'] = 'paid'
-            tracking_orders[order_code]['paid_amount'] = actual_amount
-            tracking_orders[order_code]['paid_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
-            print(f"✅ {order_code} - {actual_amount:,} VND")
-            
-            # Gửi thông báo (chạy async)
-            coroutine = send_payment_notification(user_id, order_code, actual_amount, order_info, new_balance)
-            loop.run_until_complete(coroutine)
-    
-    save_tracking()
-    save_balance()
 
 async def send_payment_notification(user_id, order_code, amount, order_info, new_balance):
     try:
@@ -800,15 +776,6 @@ async def send_payment_notification(user_id, order_code, amount, order_info, new
         print(f"📨 Đã gửi thông báo đến user {user_id} - {amount:,} VND")
     except Exception as e:
         print(f"❌ Lỗi gửi: {e}")
-
-def start_checking_loop():
-    global checking_active
-    while checking_active:
-        try:
-            check_all_orders()
-        except Exception as e:
-            print(f"❌ Lỗi: {e}")
-        time.sleep(CHECK_INTERVAL)
 
 # ========== HÀM TẠO TÀI KHOẢN ẢO ==========
 async def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
@@ -1995,14 +1962,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Chạy bất đồng bộ, không chờ
         asyncio.create_task(process_and_reply(status_msg, customer_name, bank, user_id))
         return
-        
-        if result and result.get('success'):
-            # Đã gửi tin trong create_virtual_account, chỉ cần xóa tin "đang xử lý"
-            await status_msg.delete()
-        else:
-            error = result.get('error', 'Lỗi không xác định') if result else 'Lỗi kết nối'
-            await status_msg.edit_text(f"❌ TẠO THẤT BẠI!\n\n⚠️ Lỗi: {error}", reply_markup=get_back_menu())
-        return
+
     # Trong hàm handle_message, thêm:
     if context.user_data.get('pending_add_bank'):
         context.user_data.pop('pending_add_bank')

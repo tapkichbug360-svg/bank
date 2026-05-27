@@ -6,6 +6,7 @@ import string
 import threading
 import json
 import os
+import asyncio
 from datetime import datetime, timedelta
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -409,6 +410,77 @@ def login_and_get_cookies():
     finally:
         if driver:
             driver.quit()
+async def chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    # Kiểm tra admin
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ Bạn không có quyền sử dụng lệnh này!")
+        return
+    
+    # Lấy nội dung tin nhắn
+    if not context.args and not update.message.photo:
+        await update.message.reply_text(
+            "📌 CÁCH DÙNG:\n"
+            "/chat <nội dung> - Gửi tin nhắn text đến tất cả user\n"
+            "/chat (kèm ảnh) - Gửi ảnh + caption đến tất cả user\n\n"
+            "✨ Ví dụ:\n"
+            "/chat Thông báo: Bảo trì hệ thống lúc 22h\n"
+            "(gửi ảnh kèm caption)"
+        )
+        return
+    
+    # Lấy caption (nội dung text)
+    caption = ' '.join(context.args) if context.args else None
+    if update.message.caption:
+        caption = update.message.caption
+    
+    # Lấy ảnh (nếu có)
+    photo = update.message.photo[-1] if update.message.photo else None
+    
+    # Lấy tất cả user đã duyệt
+    target_users = approved_users.copy() if approved_users else list(user_balance.keys())
+    
+    if not target_users:
+        await update.message.reply_text("📭 Không có user nào để gửi tin nhắn!")
+        return
+    
+    # Gửi tin nhắn
+    success_count = 0
+    fail_count = 0
+    
+    status_msg = await update.message.reply_text(f"⏳ Đang gửi tin nhắn đến {len(target_users)} user...")
+    
+    for uid in target_users:
+        try:
+            if photo:
+                # Gửi ảnh kèm caption
+                await context.bot.send_photo(
+                    chat_id=int(uid),
+                    photo=photo.file_id,
+                    caption=caption
+                )
+            else:
+                # Gửi text
+                await context.bot.send_message(
+                    chat_id=int(uid),
+                    text=caption
+                )
+            success_count += 1
+        except Exception as e:
+            fail_count += 1
+            print(f"❌ Lỗi gửi cho user {uid}: {e}")
+        
+        # Delay nhẹ để tránh spam
+        await asyncio.sleep(0.1)
+    
+    # Thông báo kết quả
+    await status_msg.edit_text(
+        f"✅ ĐÃ GỬI XONG!\n\n"
+        f"📨 Thành công: {success_count} user\n"
+        f"❌ Thất bại: {fail_count} user\n"
+        f"📝 Nội dung: {caption if caption else '(không có caption)'}"
+    )
 def check_orders_loop():
     global tracking_orders, user_balance, is_logged_in
     
@@ -2168,6 +2240,7 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CommandHandler("chat", chat_command))
     app.add_handler(CommandHandler("duyet", duyet_command))  # THÊM
     
     print("✅ Bot đang chạy! Kiểm tra đơn hàng mỗi 10 giây")

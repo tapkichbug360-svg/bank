@@ -489,7 +489,6 @@ async def check_orders_loop():
         try:
             if not is_logged_in:
                 print("⚠️ Chưa đăng nhập, đang đăng nhập lại...")
-                # Chạy login trong thread để không block
                 await asyncio.to_thread(login_and_get_cookies)
                 await asyncio.sleep(5)
                 continue
@@ -497,13 +496,25 @@ async def check_orders_loop():
             # Chạy request trong thread để không block event loop
             response = await asyncio.to_thread(session.get, f"{BASE_URL}/orders", timeout=60)
             
+            # Cập nhật cookie từ response (quan trọng)
+            if response.cookies:
+                session.cookies.update(response.cookies)
+            
             if response.status_code == 200:
                 html = response.text
+                
+                # Kiểm tra xem có bị redirect về login không (phát hiện session chết)
+                if 'Đăng nhập' in html[:500] and ('/login' in html[:500] or 'Khu vực quản trị' in html[:500]):
+                    print("⚠️ Phát hiện trang login, session đã hết hạn!")
+                    is_logged_in = False
+                    await asyncio.to_thread(login_and_get_cookies)
+                    continue
+                
                 print(f"✅ [{datetime.now().strftime('%H:%M:%S')}] Đã lấy dữ liệu orders")
-                # Xử lý thanh toán song song
                 await check_for_new_payments_async(html)
+                
             elif response.status_code == 302:
-                print("⚠️ Session hết hạn, đăng nhập lại...")
+                print("⚠️ Session hết hạn (302), đăng nhập lại...")
                 is_logged_in = False
             else:
                 print(f"⚠️ Lỗi {response.status_code}")
@@ -515,7 +526,21 @@ async def check_orders_loop():
             print(f"❌ Lỗi: {e}")
             await asyncio.sleep(15)
         
-        await asyncio.sleep(10)  # Chờ 10 giây rồi thử lại
+        await asyncio.sleep(10)
+def is_session_valid():
+    """Kiểm tra session có còn hiệu lực không"""
+    try:
+        resp = session.get(f"{BASE_URL}/dashboard", timeout=10, allow_redirects=False)
+        return resp.status_code == 200
+    except:
+        return False
+async def refresh_session_periodically():
+    """Định kỳ refresh session để tránh hết hạn"""
+    while True:
+        await asyncio.sleep(1800)  # 30 phút
+        print("🔄 Đang refresh session định kỳ...")
+        await asyncio.to_thread(login_and_get_cookies)
+        print("✅ Refresh session thành công")
 async def check_for_new_payments_async(html):
     global tracking_orders, user_balance
     
@@ -825,6 +850,11 @@ async def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
         
         print(f"📤 Đang gửi POST request...")
         response = session.post(url, data=data, headers=headers, timeout=30, allow_redirects=True)
+        
+        # Cập nhật cookie từ response (quan trọng để giữ session đồng bộ)
+        if response.cookies:
+            session.cookies.update(response.cookies)
+            print(f"🍪 Đã cập nhật session cookie từ response")
         
         print(f"📊 Response Status: {response.status_code}")
         print(f"📍 Final URL: {response.url}")
@@ -2272,7 +2302,7 @@ def main():
     if not login_and_get_cookies():
         print("❌ Không thể đăng nhập!")
         return
-    
+    asyncio.create_task(refresh_session_periodically())
     # Khởi động thread kiểm tra đơn hàng mỗi 10 giây
     check_thread = threading.Thread(target=check_orders_loop, daemon=True)
     check_thread.start()

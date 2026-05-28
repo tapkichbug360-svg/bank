@@ -18,7 +18,43 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 from telegram.ext import MessageHandler, filters
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-#
+# Thêm vào sau các import, trước hàm login_and_get_cookies()
+import pickle
+# Thêm sau các import
+import logging
+
+# Cấu hình logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('bot_log.txt', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+
+# Thay thế các print bằng logging
+
+def save_session():
+    """Lưu session hiện tại vào file"""
+    global session
+    try:
+        with open('session.pkl', 'wb') as f:
+            pickle.dump(session, f)
+        print("💾 Đã lưu session vào file")
+    except Exception as e:
+        print(f"⚠️ Lỗi lưu session: {e}")
+
+def load_session():
+    """Đọc session từ file"""
+    global session
+    try:
+        with open('session.pkl', 'rb') as f:
+            session = pickle.load(f)
+        print("📂 Đã load session từ file")
+        return True
+    except:
+        return False
 # ========== CẤU HÌNH ==========
 BOT_TOKEN = "8948961848:AAHBvyAW4k13-1UqFLO_AFnrBUXc0CYUs-4"
 EMAIL = "gohan@gmail.com"
@@ -336,10 +372,13 @@ def login_and_get_cookies():
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--window-size=1920,1080")
         
+        # ========== THÊM: USER-AGENT CHO CHROME ==========
+        chrome_options.add_argument("--user-agent=Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 Chrome/148.0.0.0 Mobile Safari/537.36")
+        
         driver = webdriver.Chrome(options=chrome_options)
         driver.get(f"{BASE_URL}/login")
         
-        # Chờ trang tải xong (không cần sleep cứng)
+        # Chờ trang tải xong
         wait = WebDriverWait(driver, 10)
         
         # Nhập email
@@ -352,51 +391,45 @@ def login_and_get_cookies():
         password_input.clear()
         password_input.send_keys(PASSWORD)
         
-        # Tìm nút đăng nhập - THỬ NHIỀU CÁCH
-        login_btn = None
-        selectors = [
-            "//button[contains(text(), 'Đăng nhập')]",
-            "//button[contains(text(), 'Login')]",
-            "//button[@type='submit']",
-            "//input[@type='submit']",
-            "//form//button",
-            "//span[contains(text(), 'Đăng nhập')]/parent::button"
-        ]
-        
-        for selector in selectors:
-            try:
-                login_btn = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
-                if login_btn:
-                    print(f"✅ Tìm thấy nút đăng nhập với selector: {selector}")
-                    break
-            except:
-                continue
-        
-        if not login_btn:
-            # In ra HTML để debug
-            print("❌ Không tìm thấy nút đăng nhập! HTML trang login:")
-            print(driver.page_source[:1000])
-            driver.save_screenshot("login_page_error.png")
-            return False
-        
-        # Click nút đăng nhập
+        # Tìm nút đăng nhập
+        login_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@type='submit']")))
         login_btn.click()
         
-        # Chờ chuyển hướng sau đăng nhập
+        # Chờ chuyển hướng
         wait.until(EC.url_contains("/dashboard"))
-        time.sleep(2)  # Đảm bảo cookies được set
+        time.sleep(2)
         
-        # Lưu cookies
+        # ========== SỬA: LƯU COOKIES ĐẦY ĐỦ (CẢ DOMAIN VÀ PATH) ==========
         for cookie in driver.get_cookies():
-            session.cookies.set(cookie['name'], cookie['value'])
-            print(f"🍪 Cookie: {cookie['name']}")
+            session.cookies.set(
+                cookie['name'],
+                cookie['value'],
+                domain=cookie.get('domain', 'veloragame.com'),
+                path=cookie.get('path', '/')
+            )
+            print(f"🍪 Cookie: {cookie['name']} = {cookie['value'][:30]}...")
         
-        # Lấy CSRF token
-        resp = session.get(f"{BASE_URL}/virtual-accounts/create", timeout=30)
+        # ========== SỬA: THÊM HEADERS KHI LẤY CSRF TOKEN ==========
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+            'Accept-Language': 'vi-VN,vi;q=0.9'
+        }
+        
+        resp = session.get(f"{BASE_URL}/virtual-accounts/create", headers=headers, timeout=30)
         match = re.search(r'name="_token"\s+value="([^"]+)"', resp.text)
         if match:
             csrf_token = match.group(1)
-            print(f"✅ Lấy token: {csrf_token[:50]}...")
+            print(f"✅ Lấy CSRF token: {csrf_token[:50]}...")
+        else:
+            # ========== THÊM: THỬ TÌM TOKEN Ở DẠNG KHÁC ==========
+            match2 = re.search(r'csrf-token" content="([^"]+)"', resp.text)
+            if match2:
+                csrf_token = match2.group(1)
+                print(f"✅ Lấy CSRF token (meta tag): {csrf_token[:50]}...")
+        
+        # ========== THÊM: LƯU SESSION VÀO FILE ==========
+        save_session()
         
         is_logged_in = True
         print("✅ Đăng nhập thành công!")
@@ -411,6 +444,144 @@ def login_and_get_cookies():
     finally:
         if driver:
             driver.quit()
+def refresh_session_with_remember_cookie():
+    """Tự động đăng nhập lại bằng remember_web cookie (không cần Selenium)"""
+    global session, is_logged_in, csrf_token
+    
+    # ========== THÊM: HEADERS CHO REQUEST ==========
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U) AppleWebKit/537.36 Chrome/148.0.0.0 Mobile Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+        'Accept-Language': 'vi-VN,vi;q=0.9',
+        'Cache-Control': 'max-age=0',
+        'Referer': f"{BASE_URL}/dashboard"
+    }
+    
+    try:
+        # Tìm remember cookie trong session
+        remember_cookie = None
+        remember_cookie_name = None
+        
+        for cookie in session.cookies:
+            if cookie.name.startswith('remember_web'):
+                remember_cookie = cookie.value
+                remember_cookie_name = cookie.name
+                break
+        
+        if not remember_cookie:
+            print("⚠️ Không tìm thấy remember cookie, cần đăng nhập lại bằng Selenium")
+            return False
+        
+        print(f"🍪 Tìm thấy remember cookie: {remember_cookie_name[:30]}...")
+        
+        # ========== SỬA: TẠO SESSION MỚI VỚI ĐẦY ĐỦ COOKIE ==========
+        new_session = requests.Session()
+        
+        # Set remember cookie
+        new_session.cookies.set(
+            remember_cookie_name,
+            remember_cookie,
+            domain='veloragame.com',
+            path='/'
+        )
+        
+        # ========== THÊM: COPY CÁC COOKIE KHÁC ==========
+        for cookie in session.cookies:
+            if not cookie.name.startswith('remember_web'):
+                new_session.cookies.set(
+                    cookie.name,
+                    cookie.value,
+                    domain=cookie.domain or 'veloragame.com',
+                    path=cookie.path or '/'
+                )
+        
+        # Thử truy cập dashboard với headers đầy đủ
+        resp = new_session.get(
+            f"{BASE_URL}/dashboard", 
+            headers=headers,
+            timeout=30, 
+            allow_redirects=False
+        )
+        
+        # ========== SỬA: KIỂM TRA KỸ HƠN ==========
+        if resp.status_code == 200:
+            # Kiểm tra nội dung không phải trang login
+            if 'Đăng nhập' not in resp.text and 'login' not in resp.text.lower():
+                # Thành công, cập nhật session mới
+                session = new_session
+                
+                # Lấy CSRF token mới với headers đầy đủ
+                resp2 = session.get(
+                    f"{BASE_URL}/virtual-accounts/create", 
+                    headers=headers,
+                    timeout=30
+                )
+                
+                # Thử nhiều cách tìm token
+                match = re.search(r'name="_token"\s+value="([^"]+)"', resp2.text)
+                if not match:
+                    match = re.search(r'csrf-token" content="([^"]+)"', resp2.text)
+                if not match:
+                    match = re.search(r'<input[^>]*name="_token"[^>]*value="([^"]+)"', resp2.text)
+                
+                if match:
+                    csrf_token = match.group(1)
+                    print(f"✅ Lấy CSRF token mới: {csrf_token[:30]}...")
+                else:
+                    print("⚠️ Không lấy được CSRF token mới")
+                
+                # ========== THÊM: LƯU SESSION VÀO FILE ==========
+                save_session()
+                
+                is_logged_in = True
+                print("✅ Đã refresh session thành công bằng remember cookie (không cần Selenium)")
+                return True
+        
+        # Xử lý redirect
+        if resp.status_code == 302:
+            location = resp.headers.get('Location', '')
+            if 'login' in location:
+                print("⚠️ Remember cookie đã hết hạn, cần đăng nhập lại bằng Selenium")
+                return False
+        
+        print("⚠️ Refresh bằng remember cookie thất bại, cần đăng nhập lại bằng Selenium")
+        return False
+        
+    except Exception as e:
+        print(f"❌ Lỗi refresh session: {e}")
+        return False
+    
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+def create_session_with_retry():
+    """
+    Tạo session với cơ chế retry tự động
+    Giúp tăng độ ổn định khi network không ổn định
+    """
+    session = requests.Session()
+    
+    # Cấu hình retry
+    retry_strategy = Retry(
+        total=3,                      # Tổng số lần retry
+        backoff_factor=1,             # Thời gian chờ giữa các lần retry: 1s, 2s, 4s
+        status_forcelist=[429, 500, 502, 503, 504],  # Retry khi gặp các status code này
+        allowed_methods=["HEAD", "GET", "OPTIONS"]    # Chỉ retry với các method này
+    )
+    
+    # Tạo adapter và mount vào session
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    
+    # Set default headers
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U) AppleWebKit/537.36 Chrome/148.0.0.0 Mobile Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
+        'Accept-Language': 'vi-VN,vi;q=0.9'
+    })
+    
+    return session
 async def chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
@@ -485,53 +656,107 @@ async def chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def check_orders_loop():
     global tracking_orders, user_balance, is_logged_in
     
+    # ========== THÊM: HEADERS CHUẨN NHƯ CURL ==========
+    headers = {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'accept-language': 'vi-VN,vi;q=0.9,fr-FR;q=0.8,en-US;q=0.6',
+        'cache-control': 'max-age=0',
+        'referer': 'https://veloragame.com/orders',
+        'sec-ch-ua': '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
+        'sec-ch-ua-mobile': '?1',
+        'sec-ch-ua-platform': '"Android"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'same-origin',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 Chrome/148.0.0.0 Mobile Safari/537.36'
+    }
+    
     while True:
         try:
             if not is_logged_in:
                 print("⚠️ Chưa đăng nhập, đang đăng nhập lại...")
-                await asyncio.to_thread(login_and_get_cookies)
+                # Thử dùng remember cookie trước (nhanh)
+                if not refresh_session_with_remember_cookie():
+                    # Nếu thất bại, mới dùng Selenium
+                    await asyncio.to_thread(login_and_get_cookies)
                 await asyncio.sleep(5)
                 continue
             
-            # Chạy request trong thread để không block event loop
-            response = await asyncio.to_thread(session.get, f"{BASE_URL}/orders", timeout=60)
+            # ========== SỬA: THÊM HEADERS VÀ allow_redirects=False ==========
+            response = await asyncio.to_thread(
+                session.get, 
+                f"{BASE_URL}/orders", 
+                headers=headers,                    # ✅ THÊM HEADERS
+                timeout=60,
+                allow_redirects=False               # ✅ KHÔNG tự động redirect
+            )
             
-            # Cập nhật cookie từ response (quan trọng)
-            if response.cookies:
-                session.cookies.update(response.cookies)
+            # ========== SỬA: XỬ LÝ 302 ĐÚNG CÁCH ==========
+            if response.status_code == 302:
+                print("⚠️ Session hết hạn (302), đăng nhập lại...")
+                
+                # ✅ LƯU COOKIE TỪ RESPONSE TRƯỚC KHI ĐĂNG NHẬP LẠI
+                if response.cookies:
+                    session.cookies.update(response.cookies)
+                    print(f"🍪 Đã lưu {len(response.cookies)} cookie từ response 302")
+                
+                is_logged_in = False
+                
+                # ✅ THỬ DÙNG REMEMBER COOKIE
+                if not refresh_session_with_remember_cookie():
+                    await asyncio.to_thread(login_and_get_cookies)
+                continue
             
+            # ========== SỬA: CẬP NHẬT COOKIE KHI THÀNH CÔNG ==========
             if response.status_code == 200:
                 html = response.text
                 
-                # Kiểm tra xem có bị redirect về login không (phát hiện session chết)
-                if 'Đăng nhập' in html[:500] and ('/login' in html[:500] or 'Khu vực quản trị' in html[:500]):
+                # Cập nhật cookie mới từ response
+                if response.cookies:
+                    session.cookies.update(response.cookies)
+                    print(f"🍪 Đã cập nhật {len(response.cookies)} cookie")
+                
+                # Kiểm tra nếu bị redirect về login (phát hiện session chết)
+                if 'Đăng nhập' in html or 'Khu vực quản trị' in html or 'login' in html.lower():
                     print("⚠️ Phát hiện trang login, session đã hết hạn!")
                     is_logged_in = False
-                    await asyncio.to_thread(login_and_get_cookies)
+                    
+                    # ✅ THỬ DÙNG REMEMBER COOKIE TRƯỚC
+                    if not refresh_session_with_remember_cookie():
+                        await asyncio.to_thread(login_and_get_cookies)
                     continue
                 
-                print(f"✅ [{datetime.now().strftime('%H:%M:%S')}] Đã lấy dữ liệu orders")
+                print(f"✅ [{datetime.now().strftime('%H:%M:%S')}] Đã lấy dữ liệu orders (length: {len(html)} chars)")
                 await check_for_new_payments_async(html)
                 
-            elif response.status_code == 302:
-                print("⚠️ Session hết hạn (302), đăng nhập lại...")
-                is_logged_in = False
             else:
-                print(f"⚠️ Lỗi {response.status_code}")
+                print(f"⚠️ Lỗi {response.status_code} - {response.reason}")
                 
         except asyncio.TimeoutError:
             print(f"⚠️ [{datetime.now().strftime('%H:%M:%S')}] Timeout, thử lại sau 15 giây...")
             await asyncio.sleep(15)
         except Exception as e:
             print(f"❌ Lỗi: {e}")
+            import traceback
+            traceback.print_exc()                     # ✅ THÊM: IN CHI TIẾT LỖI
             await asyncio.sleep(15)
         
-        await asyncio.sleep(10)
+        await asyncio.sleep(10)                       # ✅ GIỮ NGUYÊN 10s
 def is_session_valid():
     """Kiểm tra session có còn hiệu lực không"""
     try:
         resp = session.get(f"{BASE_URL}/dashboard", timeout=10, allow_redirects=False)
         return resp.status_code == 200
+    except:
+        return False
+def is_order_expired(created_at_str):
+    """Kiểm tra đơn có quá 24 giờ hay không"""
+    from datetime import datetime
+    try:
+        created_at = datetime.strptime(created_at_str, '%Y-%m-%d %H:%M:%S')
+        hours_ago = (datetime.now() - created_at).total_seconds() / 3600
+        return hours_ago >= 24  # True nếu quá 24 giờ
     except:
         return False
 async def refresh_session_periodically():
@@ -544,6 +769,10 @@ async def refresh_session_periodically():
 async def check_for_new_payments_async(html):
     global tracking_orders, user_balance
     
+    from datetime import datetime  # ✅ THÊM DÒNG NÀY
+    
+    print("🔍 Đang kiểm tra đơn hàng có tiền về...")
+    
     # Lấy danh sách order_code từ HTML
     order_codes_in_html = set(re.findall(r'ORD-[A-Z0-9]{25}', html))
     
@@ -552,21 +781,83 @@ async def check_for_new_payments_async(html):
         if order_info.get('status') == 'paid':
             continue
         
+        # ========== ✅ THÊM: BỎ QUA ĐƠN QUÁ 24 GIỜ ==========
+        created_at = order_info.get('created_at')
+        if created_at:
+            try:
+                created_time = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                hours_ago = (datetime.now() - created_time).total_seconds() / 3600
+                if hours_ago >= 24:
+                    print(f"⏰ Đơn {order_code} đã quá 24 giờ ({hours_ago:.1f}h), bỏ qua kiểm tra")
+                    tracking_orders[order_code]['status'] = 'expired'
+                    save_tracking()
+                    continue
+            except:
+                pass
+        # ===================================================
+        
         actual_amount = None
         
         if order_code in html:
-            pattern = rf'href="[^"]*{re.escape(order_code)}[^"]*".*?'
-            pattern += r'<td data-label="Số tiền">([\d.]+)</tr>'
-            match = re.search(pattern, html, re.DOTALL)
-            if match:
-                amount_str = match.group(1).replace('.', '')
-                actual_amount = int(amount_str)
-                await process_payment(order_code, order_info, actual_amount)
+            # ========== SỬA: THÊM NHIỀU PATTERN HƠN ==========
+            # Pattern 1: Tìm số tiền trong cùng dòng hoặc gần đó
+            patterns = [
+                r'<td data-label="Số tiền">([\d.]+)</td>',      # Định dạng 2.000
+                r'<td data-label="Số tiền">([\d,]+)</td>',      # Định dạng 2,000
+                r'<td data-label="Số tiền">(\d+)</td>',         # Định dạng 2000
+                r'Số tiền["\']?>([\d.,]+)',                     # Tìm gần label
+                r'(\d{1,3}(?:[.,]\d{3})*)\s*(?:VND|đ|vnd)',    # Regex linh hoạt
+            ]
+            
+            # Tìm đoạn HTML xung quanh order_code
+            idx = html.find(order_code)
+            if idx != -1:
+                # Lấy 1000 ký tự xung quanh order_code
+                surrounding = html[max(0, idx-500):min(len(html), idx+500)]
+                
+                for pattern in patterns:
+                    match = re.search(pattern, surrounding, re.IGNORECASE | re.DOTALL)
+                    if match:
+                        amount_str = match.group(1)
+                        # Xóa dấu chấm hoặc dấu phẩy
+                        amount_str = amount_str.replace('.', '').replace(',', '')
+                        try:
+                            actual_amount = int(amount_str)
+                            if actual_amount > 0:
+                                print(f"💰 Tìm thấy {order_code}: {actual_amount:,} VND (pattern: {pattern[:30]})")
+                                break
+                        except:
+                            continue
+        
+        if actual_amount is not None and actual_amount > 0:
+            # ========== ✅ THÊM: BỎ QUA SỐ TIỀN 1000 (TIỀN MẶC ĐỊNH KHI TẠO) ==========
+            if actual_amount <= 1000:
+                print(f"⚠️ Bỏ qua đơn {order_code} với số tiền {actual_amount:,} VND (tiền mặc định khi tạo đơn)")
+                # Không đánh dấu paid, để sau này check lại khi có tiền thật
+                continue
+            # ========================================================================
+            
+            await process_payment(order_code, order_info, actual_amount)
     
     # 2. KIỂM TRA TRANG CHI TIẾT CHO ĐƠN CHƯA XỬ LÝ
     for order_code, order_info in tracking_orders.items():
         if order_info.get('status') == 'paid':
             continue
+        
+        # ========== ✅ THÊM: BỎ QUA ĐƠN QUÁ 24 GIỜ ==========
+        created_at = order_info.get('created_at')
+        if created_at:
+            try:
+                created_time = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                hours_ago = (datetime.now() - created_time).total_seconds() / 3600
+                if hours_ago >= 24:
+                    print(f"⏰ Đơn {order_code} đã quá 24 giờ ({hours_ago:.1f}h), bỏ qua kiểm tra chi tiết")
+                    tracking_orders[order_code]['status'] = 'expired'
+                    save_tracking()
+                    continue
+            except:
+                pass
+        # ===================================================
         
         # Kiểm tra trang chi tiết
         detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"
@@ -575,17 +866,44 @@ async def check_for_new_payments_async(html):
             if detail_response.status_code == 200:
                 detail_html = detail_response.text
                 
-                # Tìm số tiền trong trang chi tiết
-                amount_match = re.search(r'Số tiền.*?(\d{1,3}(?:,\d{3})*)\s*đ', detail_html, re.DOTALL)
-                if not amount_match:
-                    amount_match = re.search(r'(\d{1,3}(?:,\d{3})*)\s*đ', detail_html)
+                # ========== SỬA: THÊM NHIỀU PATTERN CHO TRANG CHI TIẾT ==========
+                amount_match = None
                 
-                if amount_match:
-                    amount_str = amount_match.group(1).replace(',', '')
-                    actual_amount = int(amount_str)
-                    if actual_amount > 0:
-                        print(f"🔍 Phát hiện đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
-                        await process_payment(order_code, order_info, actual_amount)
+                # Pattern cho số tiền với dấu chấm hoặc dấu phẩy
+                patterns_detail = [
+                    r'Số tiền.*?(\d{1,3}(?:[.,]\d{3})*)\s*(?:VND|đ|vnd)',
+                    r'<td[^>]*class="[^"]*amount[^"]*"[^>]*>([\d.,]+)<',
+                    r'class="[^"]*price[^"]*"[^>]*>([\d.,]+)<',
+                    r'(\d{1,3}(?:[.,]\d{3})*)\s*(?:VND|đ)',
+                    r'([\d.,]+)\s*(?:VND|đ)',
+                ]
+                
+                for pattern in patterns_detail:
+                    amount_match = re.search(pattern, detail_html, re.DOTALL | re.IGNORECASE)
+                    if amount_match:
+                        amount_str = amount_match.group(1).replace('.', '').replace(',', '')
+                        try:
+                            actual_amount = int(amount_str)
+                            if actual_amount > 0:
+                                # ========== ✅ THÊM: BỎ QUA SỐ TIỀN 1000 ==========
+                                if actual_amount <= 1000:
+                                    print(f"⚠️ Bỏ qua đơn {order_code} với số tiền {actual_amount:,} VND (tiền mặc định) - chi tiết")
+                                    break
+                                # ================================================
+                                
+                                print(f"🔍 Phát hiện đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
+                                await process_payment(order_code, order_info, actual_amount)
+                                break
+                        except:
+                            continue
+                
+                # Nếu không tìm thấy số tiền nhưng có trạng thái xác nhận
+                if amount_match is None and ('Xác nhận' in detail_html or 'is-success' in detail_html):
+                    print(f"⚠️ Đơn {order_code} có trạng thái xác nhận, lấy số tiền mặc định: {order_info.get('amount', 0)} VND")
+                    default_amount = order_info.get('amount', 0)
+                    if default_amount > 0 and default_amount > 1000:  # ✅ THÊM: chỉ lấy nếu > 1000
+                        await process_payment(order_code, order_info, default_amount)
+                        
         except Exception as e:
             print(f"⚠️ Lỗi check chi tiết {order_code}: {e}")
     
@@ -771,12 +1089,18 @@ async def send_telegram_notification_async(user_id, order_code, amount, order_in
         bot = Bot(token=BOT_TOKEN)
         tasks = []
         
-        # Gửi cho user
-        tasks.append(bot.send_message(chat_id=int(user_id), text=user_message))
+        # Gửi cho user (BỎ parse_mode='Markdown')
+        tasks.append(bot.send_message(
+            chat_id=int(user_id), 
+            text=user_message
+        ))
         
-        # Gửi cho tất cả admin
+        # Gửi cho tất cả admin (BỎ parse_mode='Markdown')
         for admin_id in ADMIN_IDS:
-            tasks.append(bot.send_message(chat_id=admin_id, text=admin_message))
+            tasks.append(bot.send_message(
+                chat_id=admin_id, 
+                text=admin_message
+            ))
         
         # GỬI TẤT CẢ CÙNG LÚC
         await asyncio.gather(*tasks)
@@ -799,11 +1123,14 @@ async def send_payment_notification(user_id, order_code, amount, order_info, new
             f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n\n"
             f"📊 Số dư hiện tại: {new_balance:,.0f} VND"
         )
-        await bot.send_message(chat_id=int(user_id), text=message)  # THÊM await
+        await bot.send_message(
+            chat_id=int(user_id), 
+            text=message
+            # ❌ BỎ parse_mode='Markdown'
+        )
         print(f"📨 Đã gửi thông báo đến user {user_id} - {amount:,} VND")
     except Exception as e:
         print(f"❌ Lỗi gửi: {e}")
-
 # ========== HÀM TẠO TÀI KHOẢN ẢO ==========
 async def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
     global session, csrf_token, is_logged_in
@@ -1151,68 +1478,39 @@ def reject_withdraw(request_id):
 # ========== TELEGRAM BOT HANDLERS ==========
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    user_name = update.effective_user.first_name
-    username = update.effective_user.username or "không có username"
     
-    # Kiểm tra đã được duyệt chưa
     if str(user_id) in approved_users:
         await update.message.reply_text(
-            f"🤖 BOT TẠO TÀI KHOẢN ẢO\n\n"
-            f"Chào mừng bạn đã quay trở lại!\n"
-            f"🆔 User ID: {user_id}\n\n"
-            f"📌 Sử dụng menu bên dưới để điều khiển bot",
+            f"<tg-emoji emoji-id='5226639745106330551'>🤖</tg-emoji> <b>BOT VIP PROMAX</b>\n\n"
+            f"<tg-emoji emoji-id='5461151367559141950'>👋</tg-emoji> Chào mừng bạn đã quay trở lại!\n"
+            f"<tg-emoji emoji-id='5422439311196834318'>🆔</tg-emoji> User ID: {user_id}\n\n"
+            f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Sử dụng menu bên dưới để điều khiển bot",
+            parse_mode='HTML',
             reply_markup=get_main_menu(user_id)
         )
         return
     
-    # Kiểm tra đã gửi yêu cầu chưa
     if str(user_id) in pending_users:
         await update.message.reply_text(
-            f"⏳ YÊU CẦU CỦA BẠN ĐANG ĐƯỢC XỬ LÝ!\n\n"
-            f"👤 User ID: {user_id}\n"
-            f"📝 Vui lòng chờ admin duyệt trong ít phút!\n"
-            f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}"
+            f"<tg-emoji emoji-id='5454415424319931791'>⏳</tg-emoji> <b>YÊU CẦU CỦA BẠN ĐANG ĐƯỢC XỬ LÝ!</b>\n\n"
+            f"<tg-emoji emoji-id='5364109867156001787'>🆔</tg-emoji> User ID: {user_id}\n"
+            f"<tg-emoji emoji-id='5285026110348731539'>📝</tg-emoji> Vui lòng chờ admin duyệt trong ít phút!\n"
+            f"<tg-emoji emoji-id='5440621591387980068'>🕐</tg-emoji> Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}",
+            parse_mode='HTML'
         )
         return
     
-    # Gửi yêu cầu duyệt mới
     pending_users.append(str(user_id))
     save_pending_users()
     
-    # Thông báo cho user
     await update.message.reply_text(
-        f"✅ ĐÃ GỬI YÊU CẦU DUYỆT!\n\n"
-        f"👤 User ID: {user_id}\n"
-        f"📝 Vui lòng chờ admin duyệt trong ít phút!\n"
-        f"⏳ Bạn sẽ nhận được thông báo khi được duyệt.\n\n"
-        f"💡 Lưu ý: Nếu chưa được duyệt sau 5 phút, vui lòng liên hệ admin!"
+        f"<tg-emoji emoji-id='5285265460286217966'>✅</tg-emoji> <b>ĐÃ GỬI YÊU CẦU DUYỆT!</b>\n\n"
+        f"<tg-emoji emoji-id='5364109867156001787'>🆔</tg-emoji> User ID: {user_id}\n"
+        f"<tg-emoji emoji-id='5285026110348731539'>📝</tg-emoji> Vui lòng chờ admin duyệt trong ít phút!\n"
+        f"<tg-emoji emoji-id='5454415424319931791'>⏳</tg-emoji> Bạn sẽ nhận được thông báo khi được duyệt.\n\n"
+        f"<tg-emoji emoji-id='5422439311196834318'>💡</tg-emoji> Lưu ý: Nếu chưa được duyệt sau 5 phút, vui lòng liên hệ admin!",
+        parse_mode='HTML'
     )
-    
-    # Gửi thông báo cho admin
-    for admin_id in ADMIN_IDS:
-        try:
-            keyboard = InlineKeyboardMarkup([
-                [
-                    InlineKeyboardButton("✅ Xác nhận", callback_data=f"approve_user_{user_id}"),
-                    InlineKeyboardButton("❌ Từ chối", callback_data=f"reject_user_{user_id}")
-                ]
-            ])
-            
-            admin_msg = (
-                f"🆕 YÊU CẦU DUYỆT USER MỚI!\n\n"
-                f"👤 Tên: {user_name}\n"
-                f"🆔 User ID: {user_id}\n"
-                f"📛 Username: @{username}\n"
-                f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n\n"
-                f"📌 Dùng lệnh: /duyet {user_id} để duyệt nhanh"
-            )
-            await context.bot.send_message(
-                chat_id=admin_id,
-                text=admin_msg,
-                reply_markup=keyboard
-            )
-        except Exception as e:
-            print(f"❌ Lỗi gửi thông báo admin: {e}")
 async def approve_user(user_id, context):
     """Duyệt user"""
     user_id_str = str(user_id)
@@ -1234,10 +1532,6 @@ async def approve_user(user_id, context):
             text=f"✅ TÀI KHOẢN CỦA BẠN ĐÃ ĐƯỢC DUYỆT!\n\n"
                  f"🎉 Chào mừng bạn đến với bot!\n"
                  f"📌 Gửi /start để bắt đầu sử dụng.\n\n"
-                 f"💡 Hướng dẫn:\n"
-                 f"   • /new TÊN - Tạo tài khoản ảo\n"
-                 f"   • /balance - Xem số dư\n"
-                 f"   • /tracking - Theo dõi đơn hàng"
         )
     except:
         pass
@@ -1454,18 +1748,22 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history = user_balance.get(user_id_str, {}).get('history', [])
         recent = history[-20:] if history else []
         
-        msg = f"💰 SỐ DƯ CỦA BẠN\n\n"
-        msg += f"📊 Số dư: {balance:,.0f} VND\n"
-        msg += f"📈 Tổng đơn: {total_orders} đơn\n"
-        msg += f"🕐 Cập nhật: {last_update}\n"
+        msg = f"💰 <b>SỐ DƯ CỦA BẠN</b>\n\n"
+        msg += f"📊 <b>Số dư:</b> {balance:,.0f} VND\n"
+        msg += f"📈 <b>Tổng đơn:</b> {total_orders} đơn\n"
+        msg += f"🕐 <b>Cập nhật:</b> {last_update}\n"
         
         if recent:
-            msg += f"\n📋 20 ĐƠN GẦN NHẤT:\n"
+            msg += f"\n📋 <b>20 ĐƠN GẦN NHẤT:</b>\n"
             for order in reversed(recent):
                 msg += f"   • {order['amount']:,.0f} VND - {order['customer_name']}\n"
         
-        # Gửi tin nhắn mới
-        await context.bot.send_message(chat_id=user_id, text=msg, reply_markup=get_back_menu())
+        # SỬA TRỰC TIẾP TRÊN TEXT CŨ (edit message)
+        await query.edit_message_text(
+            text=msg,
+            parse_mode='HTML',
+            reply_markup=get_back_menu()
+        )
     # Xử lý duyệt/từ chối user
     elif data.startswith("approve_user_"):
         if not is_admin(user_id):
@@ -2298,17 +2596,21 @@ def main():
     load_balance()
     load_banned()
     load_withdraw_requests()
-    load_pending_users()      # THÊM
-    load_approved_users() 
+    load_pending_users()
+    load_approved_users()
+    
     # Đăng nhập lấy cookies
     if not login_and_get_cookies():
         print("❌ Không thể đăng nhập!")
         return
-    # Chạy check_orders_loop trong event loop riêng
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.create_task(check_orders_loop())
-    # Không cần loop.run_forever() vì bot đã có event loop riêng
+    
+    # Chạy check_orders_loop trong background thread
+    import threading
+    def run_async_loop():
+        asyncio.run(check_orders_loop())
+    
+    thread = threading.Thread(target=run_async_loop, daemon=True)
+    thread.start()
     
     # Tạo bot application
     app = Application.builder().token(BOT_TOKEN).build()
@@ -2317,7 +2619,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CommandHandler("chat", chat_command))
-    app.add_handler(CommandHandler("duyet", duyet_command))  # THÊM
+    app.add_handler(CommandHandler("duyet", duyet_command))
     
     print("✅ Bot đang chạy! Kiểm tra đơn hàng mỗi 10 giây")
     print(f"👥 Admin IDs: {ADMIN_IDS}")

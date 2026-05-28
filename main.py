@@ -56,7 +56,7 @@ def load_session():
     except:
         return False
 # ========== CẤU HÌNH ==========
-BOT_TOKEN = "8622678604:AAHBbK7lP9-81dp8qPI_bDJmc_HzkkdbysY"
+BOT_TOKEN = "8948961848:AAHBvyAW4k13-1UqFLO_AFnrBUXc0CYUs-4"
 EMAIL = "gohan@gmail.com"
 PASSWORD = "Go123456"
 BASE_URL = "https://veloragame.com"

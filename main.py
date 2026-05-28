@@ -56,7 +56,7 @@ def load_session():
     except:
         return False
 # ========== CẤU HÌNH ==========
-BOT_TOKEN = "8948961848:AAHBvyAW4k13-1UqFLO_AFnrBUXc0CYUs-4"
+BOT_TOKEN = "8622678604:AAHBbK7lP9-81dp8qPI_bDJmc_HzkkdbysY"
 EMAIL = "gohan@gmail.com"
 PASSWORD = "Go123456"
 BASE_URL = "https://veloragame.com"
@@ -269,30 +269,82 @@ def get_main_menu(user_id):
     if is_admin_user:
         keyboard = [
             [
-                InlineKeyboardButton("🆕 Tạo đơn", callback_data="menu_new"),
-                InlineKeyboardButton("💰 Số dư", callback_data="menu_balance"),
-                InlineKeyboardButton("📋 Theo dõi", callback_data="menu_tracking")
+                InlineKeyboardButton(
+                    text="Tạo đơn", 
+                    icon_custom_emoji_id="5213394688735717942",
+                    callback_data="menu_new"
+                ),
+                InlineKeyboardButton(
+                    text="Số dư", 
+                    icon_custom_emoji_id="5375312095346704820",
+                    callback_data="menu_balance"
+                ),
+                InlineKeyboardButton(
+                    text="Theo dõi", 
+                    icon_custom_emoji_id="5197269100878907942",
+                    callback_data="menu_tracking"
+                )
             ],
             [
-                InlineKeyboardButton("💸 Rút tiền", callback_data="menu_withdraw"),
-                InlineKeyboardButton("👥 DS User", callback_data="admin_users"),
-                InlineKeyboardButton("📊 Doanh thu", callback_data="admin_revenue")
+                InlineKeyboardButton(
+                    text="Rút tiền", 
+                    icon_custom_emoji_id="5373174941095050893",
+                    callback_data="menu_withdraw"
+                ),
+                InlineKeyboardButton(
+                    text="DS User", 
+                    icon_custom_emoji_id="5453957997418004470",
+                    callback_data="admin_users"
+                ),
+                InlineKeyboardButton(
+                    text="Doanh thu", 
+                    icon_custom_emoji_id="5028746137645876535",
+                    callback_data="admin_revenue"
+                )
             ],
             [
-                InlineKeyboardButton("🚫 Ban User", callback_data="admin_ban"),
-                InlineKeyboardButton("🔓 Mở ban", callback_data="admin_unban"),
-                InlineKeyboardButton("✅ Duyệt rút", callback_data="admin_approve_withdraw"),
+                InlineKeyboardButton(
+                    text="Ban User", 
+                    icon_custom_emoji_id="5240241223632954241",
+                    callback_data="admin_ban"
+                ),
+                InlineKeyboardButton(
+                    text="Mở ban", 
+                    icon_custom_emoji_id="5465443379917629504",
+                    callback_data="admin_unban"
+                ),
+                InlineKeyboardButton(
+                    text="Duyệt rút", 
+                    icon_custom_emoji_id="5440547189669516347",
+                    callback_data="admin_approve_withdraw"
+                )
             ]
         ]
     else:
         keyboard = [
             [
-                InlineKeyboardButton("🆕 Tạo đơn", callback_data="menu_new"),
-                InlineKeyboardButton("💰 Số dư", callback_data="menu_balance"),
-                InlineKeyboardButton("📋 Theo dõi", callback_data="menu_tracking")
+                InlineKeyboardButton(
+                    text="Tạo đơn", 
+                    icon_custom_emoji_id="5213394688735717942",
+                    callback_data="menu_new"
+                ),
+                InlineKeyboardButton(
+                    text="Số dư", 
+                    icon_custom_emoji_id="5375312095346704820",
+                    callback_data="menu_balance"
+                ),
+                InlineKeyboardButton(
+                    text="Theo dõi", 
+                    icon_custom_emoji_id="5197269100878907942",
+                    callback_data="menu_tracking"
+                )
             ],
             [
-                InlineKeyboardButton("💸 Rút tiền", callback_data="menu_withdraw"),
+                InlineKeyboardButton(
+                    text="Rút tiền", 
+                    icon_custom_emoji_id="5373174941095050893",
+                    callback_data="menu_withdraw"
+                )
             ]
         ]
     
@@ -300,9 +352,27 @@ def get_main_menu(user_id):
 
 def get_bank_menu():
     keyboard = [
-        [InlineKeyboardButton("🏦 MSB", callback_data="create_MSB")],
-        [InlineKeyboardButton("🏦 BIDV", callback_data="create_BIDV")],
-        [InlineKeyboardButton("🔙 Quay lại", callback_data="menu_main")]
+        [
+            InlineKeyboardButton(
+                text="MSB", 
+                icon_custom_emoji_id="5264895611517300926",  # ID emoji 🏦 của bạn
+                callback_data="create_MSB"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="BIDV", 
+                icon_custom_emoji_id="5264895611517300926",  # ID emoji 🏦 của bạn
+                callback_data="create_BIDV"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="Quay lại", 
+                icon_custom_emoji_id="5253997076169115797",  # ID emoji 🔙 của bạn
+                callback_data="menu_main"
+            )
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -1269,15 +1339,19 @@ async def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                 # ========== 1. GỬI CHO USER (BẤT ĐỒNG BỘ) ==========
                 try:
                     user_message = (
-                        f"*✅ TẠO THÀNH CÔNG!*\n\n"
-                        f"*👤 Tên:* {customer_name.upper()}\n"
-                        f"*🏦 Ngân hàng:* {bank_code or bank_name}\n"
-                        f"*💳 STK:* `{stk}`\n"
-                        f"*🔢 Mã đơn:* `{order_code}`\n\n"
-                        f"*💡 Lưu ý:* Bot sẽ tự động thông báo khi có tiền chuyển đến!"
+                        f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> <b>TẠO THÀNH CÔNG!</b>\n\n"
+                        f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> <b>Tên:</b> {customer_name.upper()}\n"
+                        f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> <b>Ngân hàng:</b> {bank_code or bank_name}\n"
+                        f"<tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> <b>STK:</b> <code>{stk}</code>\n"
+                        f"<tg-emoji emoji-id='5226929552319594190'>🔢</tg-emoji> <b>Mã đơn:</b> <code>{order_code}</code>\n\n"
+                        f"<tg-emoji emoji-id='5422439311196834318'>💡</tg-emoji> <b>Lưu ý:</b> Bot sẽ tự động thông báo khi có tiền chuyển đến!"
                     )
                     bot = Bot(token=BOT_TOKEN)
-                    await bot.send_message(chat_id=int(user_id), text=user_message, parse_mode='Markdown')
+                    await bot.send_message(
+                        chat_id=int(user_id), 
+                        text=user_message, 
+                        parse_mode='HTML'  # ✅ ĐỔI TỪ Markdown SANG HTML
+                    )
                     print(f"📨 Đã gửi STK cho user {user_id}")
                 except Exception as e:
                     print(f"❌ Lỗi gửi user: {e}")
@@ -1285,18 +1359,22 @@ async def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
                 # ========== 2. GỬI CHO ADMIN (BẤT ĐỒNG BỘ, SONG SONG) ==========
                 try:
                     admin_message = (
-                        f"🆕 USER VỪA TẠO ĐƠN MỚI!\n\n"
-                        f"👤 User ID: {user_id}\n"
-                        f"📛 Tên KH: {customer_name.upper()}\n"
-                        f"🏦 Ngân hàng: {bank_code or bank_name}\n"
-                        f"💳 STK: {stk}\n"
-                        f"🔢 Mã đơn: {order_code}\n"
+                        f"<tg-emoji emoji-id='5213394688735717942'>🆕</tg-emoji> USER VỪA TẠO ĐƠN MỚI!\n\n"
+                        f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> User ID: {user_id}\n"
+                        f"<tg-emoji emoji-id='5317051465271881270'>📛</tg-emoji> Tên KH: {customer_name.upper()}\n"
+                        f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> Ngân hàng: {bank_code or bank_name}\n"
+                        f"<tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> STK: {stk}\n"
+                        f"<tg-emoji emoji-id='5226929552319594190'>🔢</tg-emoji> Mã đơn: {order_code}\n"
                     )
                     
                     bot = Bot(token=BOT_TOKEN)
                     tasks = []
                     for admin_id in ADMIN_IDS:
-                        tasks.append(bot.send_message(chat_id=admin_id, text=admin_message))
+                        tasks.append(bot.send_message(
+                            chat_id=admin_id, 
+                            text=admin_message,
+                            parse_mode='HTML'  # ✅ THÊM DÒNG NÀY
+                        ))
                     
                     await asyncio.gather(*tasks)
                     print(f"📨 Đã gửi thông báo tạo đơn đến {len(ADMIN_IDS)} admin")
@@ -1643,7 +1721,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ========== MENU CHÍNH ==========
     if data == "menu_main":
         await query.edit_message_text(
-            "🏠 MENU CHÍNH\n\nChọn chức năng bạn muốn:",
+            f"<tg-emoji emoji-id='5416041192905265756'>🏠</tg-emoji> MENU CHÍNH\n\n"
+            f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Chọn chức năng bạn muốn:",
+            parse_mode='HTML',
             reply_markup=get_main_menu(user_id)
         )
     # ========== QUẢN LÝ TÀI KHOẢN RÚT TIỀN ==========
@@ -1757,7 +1837,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data['pending_withdraw_amount'] = True
     elif data == "menu_new":
         await query.edit_message_text(
-            "🏦 CHỌN NGÂN HÀNG\n\nChọn ngân hàng bạn muốn tạo tài khoản ảo:",
+            f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> CHỌN NGÂN HÀNG\n\n"
+            f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Chọn ngân hàng bạn muốn tạo tài khoản ảo:",
+            parse_mode='HTML',
             reply_markup=get_bank_menu()
         )
     
@@ -1776,13 +1858,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history = user_balance.get(user_id_str, {}).get('history', [])
         recent = history[-20:] if history else []
         
-        msg = f"💰 <b>SỐ DƯ CỦA BẠN</b>\n\n"
-        msg += f"📊 <b>Số dư:</b> {balance:,.0f} VND\n"
-        msg += f"📈 <b>Tổng đơn:</b> {total_orders} đơn\n"
-        msg += f"🕐 <b>Cập nhật:</b> {last_update}\n"
-        
+        msg = f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> <b>SỐ DƯ CỦA BẠN</b>\n\n"
+        msg += f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> <b>Số dư:</b> {balance:,.0f} VND\n"
+        msg += f"<tg-emoji emoji-id='5429651785352501917'>📈</tg-emoji> <b>Tổng đơn:</b> {total_orders} đơn\n"
+        msg += f"<tg-emoji emoji-id='5440621591387980068'>🕐</tg-emoji> <b>Cập nhật:</b> {last_update}\n"
+
         if recent:
-            msg += f"\n📋 <b>20 ĐƠN GẦN NHẤT:</b>\n"
+            msg += f"\n<tg-emoji emoji-id='5197269100878907942'>📋</tg-emoji> <b>20 ĐƠN GẦN NHẤT:</b>\n"
             for order in reversed(recent):
                 msg += f"   • {order['amount']:,.0f} VND - {order['customer_name']}\n"
         
@@ -1832,53 +1914,82 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = []
         
         # Nút thêm tài khoản (luôn hiển thị)
-        keyboard.append([InlineKeyboardButton("➕ THÊM TÀI KHOẢN RÚT", callback_data="add_withdraw_bank")])
+        keyboard.append([InlineKeyboardButton(
+            text="THÊM TÀI KHOẢN RÚT",
+            icon_custom_emoji_id="5397916757333654639",  # ➕
+            callback_data="add_withdraw_bank"
+        )])
         
         # Nếu có bank đã lưu, hiển thị danh sách
         if banks:
-            keyboard.append([InlineKeyboardButton("📋 DANH SÁCH TÀI KHOẢN", callback_data="noop")])
+            keyboard.append([InlineKeyboardButton(
+                text="DANH SÁCH TÀI KHOẢN",
+                icon_custom_emoji_id="5408946052961170713",  # 📋
+                callback_data="noop"
+            )])
             for i, bank in enumerate(banks):
                 keyboard.append([
                     InlineKeyboardButton(
-                        f"🏦 {bank['bank']} - {bank['stk'][-6:]} - {bank['name'][:15]}",
+                        text=f"{bank['bank']} - {bank['stk'][-6:]} - {bank['name'][:15]}",
+                        icon_custom_emoji_id="5264895611517300926",  # 🏦
                         callback_data=f"select_withdraw_bank_{i}"
                     )
                 ])
-            keyboard.append([InlineKeyboardButton("❌ XÓA TÀI KHOẢN", callback_data="delete_withdraw_bank")])
+            keyboard.append([InlineKeyboardButton(
+                text="XÓA TÀI KHOẢN",
+                icon_custom_emoji_id="5210952531676504517",  # ❌
+                callback_data="delete_withdraw_bank"
+            )])
         
         # Kiểm tra số dư để hiển thị trạng thái rút tiền
         if balance >= 50000:
             if banks:
-                keyboard.append([InlineKeyboardButton("💰 RÚT TIỀN", callback_data="select_amount")])
+                keyboard.append([InlineKeyboardButton(
+                    text="RÚT TIỀN",
+                    icon_custom_emoji_id="5224257782013769471",  # 💰
+                    callback_data="select_amount"
+                )])
             else:
-                keyboard.append([InlineKeyboardButton("⚠️ CẦN THÊM TÀI KHOẢN TRƯỚC", callback_data="noop")])
+                keyboard.append([InlineKeyboardButton(
+                    text="CẦN THÊM TÀI KHOẢN TRƯỚC",
+                    icon_custom_emoji_id="5420323339723881652",  # ⚠️
+                    callback_data="noop"
+                )])
         else:
-            keyboard.append([InlineKeyboardButton(f"⚠️ SỐ DƯ {balance:,.0f} VND - CHƯA ĐỦ 50K", callback_data="noop")])
+            keyboard.append([InlineKeyboardButton(
+                text=f"SỐ DƯ {balance:,.0f} VND - CHƯA ĐỦ 50K",
+                icon_custom_emoji_id="5420323339723881652",  # ⚠️
+                callback_data="noop"
+            )])
         
-        keyboard.append([InlineKeyboardButton("🔙 Quay lại", callback_data="menu_main")])
+        keyboard.append([InlineKeyboardButton(
+            text="Quay lại",
+            icon_custom_emoji_id="5253997076169115797",  # 🔙
+            callback_data="menu_main"
+        )])
         
         # Tạo message phù hợp
         if balance >= 50000:
             msg = (
-                f"💸 RÚT TIỀN\n\n"
-                f"📊 Số dư hiện tại: {balance:,.0f} VND\n"
-                f"💵 Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
-                f"💰 Sau khi trừ phí: {calculate_withdraw_amount(balance)['after_fee']:,.0f} VND\n\n"
-                f"📌 *Bước 1:* Thêm tài khoản ngân hàng nhận tiền\n"
-                f"📌 *Bước 2:* Chọn tài khoản và bấm RÚT TIỀN"
+                f"<tg-emoji emoji-id='5373174941095050893'>💸</tg-emoji> RÚT TIỀN\n\n"
+                f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Số dư hiện tại: {balance:,.0f} VND\n"
+                f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
+                f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Sau khi trừ phí: {calculate_withdraw_amount(balance)['after_fee']:,.0f} VND\n\n"
+                f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> <b>Bước 1:</b> Thêm tài khoản ngân hàng nhận tiền\n"
+                f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> <b>Bước 2:</b> Chọn tài khoản và bấm RÚT TIỀN"
             )
         else:
             msg = (
-                f"💸 RÚT TIỀN\n\n"
-                f"❌ Số dư của bạn ({balance:,.0f} VND) chưa đủ để rút!\n"
-                f"💰 Số tiền rút tối thiểu: 50,000 VND\n"
-                f"💡 Bạn cần thêm {(50000 - balance):,.0f} VND nữa để có thể rút.\n\n"
-                f"📌 *Bạn vẫn có thể thêm tài khoản ngân hàng để sẵn sàng khi đủ tiền!*"
+                f"<tg-emoji emoji-id='5373174941095050893'>💸</tg-emoji> RÚT TIỀN\n\n"
+                f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Số dư của bạn ({balance:,.0f} VND) chưa đủ để rút!\n"
+                f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền rút tối thiểu: 50,000 VND\n"
+                f"<tg-emoji emoji-id='5422439311196834318'>💡</tg-emoji> Bạn cần thêm {(50000 - balance):,.0f} VND nữa để có thể rút.\n\n"
+                f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> <b>Bạn vẫn có thể thêm tài khoản ngân hàng để sẵn sàng khi đủ tiền!</b>"
             )
-        
+
         await query.edit_message_text(
             msg,
-            parse_mode='Markdown',
+            parse_mode='HTML',  # ✅ ĐỔI TỪ Markdown SANG HTML
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     
@@ -1886,10 +1997,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("bank_"):
         bank = data.split("_")[1]
         await query.edit_message_text(
-            f"🏦 TẠO TÀI KHOẢN {bank}\n\n"
-            f"📝 Vui lòng nhập tên khách hàng (gửi tin nhắn chứa tên):\n"
-            f"✨ Ví dụ: TRAN VAN A\n\n"
-            f"⏳ Sau khi gửi, bot sẽ tự động xử lý...",
+            f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> TẠO TÀI KHOẢN {bank}\n\n"
+            f"<tg-emoji emoji-id='5197269100878907942'>📝</tg-emoji> Vui lòng nhập tên khách hàng (gửi tin nhắn chứa tên):\n"
+            f"<tg-emoji emoji-id='5325547803936572038'>✨</tg-emoji> Ví dụ: TRAN VAN A\n\n"
+            f"<tg-emoji emoji-id='5454415424319931791'>⏳</tg-emoji> Sau khi gửi, bot sẽ tự động xử lý...",
+            parse_mode='HTML',
             reply_markup=get_back_menu()
         )
         context.user_data['pending_bank'] = bank
@@ -1898,10 +2010,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("create_"):
         bank = data.split("_")[1]
         await query.edit_message_text(
-            f"🏦 TẠO TÀI KHOẢN {bank}\n\n"
-            f"📝 Vui lòng nhập tên khách hàng (gửi tin nhắn chứa tên):\n"
-            f"✨ Ví dụ: TRAN VAN A\n\n"
-            f"⏳ Sau khi gửi, bot sẽ tự động xử lý...",
+            f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> TẠO TÀI KHOẢN {bank}\n\n"
+            f"<tg-emoji emoji-id='5197269100878907942'>📝</tg-emoji> Vui lòng nhập tên khách hàng (gửi tin nhắn chứa tên):\n"
+            f"<tg-emoji emoji-id='5325547803936572038'>✨</tg-emoji> Ví dụ: TRAN VAN A\n\n"
+            f"<tg-emoji emoji-id='5454415424319931791'>⏳</tg-emoji> Sau khi gửi, bot sẽ tự động xử lý...",
+            parse_mode='HTML',
             reply_markup=get_back_menu()
         )
         context.user_data['pending_bank'] = bank
@@ -1914,10 +2027,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Hiển thị menu chọn số tiền
         await query.edit_message_text(
-            f"💸 RÚT TIỀN\n\n"
-            f"📊 Số dư hiện tại: {user_balance.get(str(user_id), {}).get('balance', 0):,.0f} VND\n"
-            f"💵 Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
-            f"📌 Chọn số tiền muốn rút:",
+            f"<tg-emoji emoji-id='5375312095346704820'>💸</tg-emoji> RÚT TIỀN\n\n"
+            f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Số dư hiện tại: {user_balance.get(str(user_id), {}).get('balance', 0):,.0f} VND\n"
+            f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
+            f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Chọn số tiền muốn rút:",
+            parse_mode='HTML',
             reply_markup=get_withdraw_amount_menu(user_id, bank_index)
         )
 
@@ -1929,10 +2043,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if amount_str == "custom":
                 await query.edit_message_text(
-                    f"💸 RÚT TIỀN\n\n"
-                    f"📝 Vui lòng nhập số tiền muốn rút (gửi tin nhắn chứa số tiền):\n"
-                    f"✨ Ví dụ: 500000\n\n"
-                    f"💰 Số tiền tối thiểu: 50,000 VND",
+                    f"<tg-emoji emoji-id='5375312095346704820'>💸</tg-emoji> RÚT TIỀN\n\n"
+                    f"<tg-emoji emoji-id='5197269100878907942'>📝</tg-emoji> Vui lòng nhập số tiền muốn rút (gửi tin nhắn chứa số tiền):\n"
+                    f"<tg-emoji emoji-id='5325547803936572038'>✨</tg-emoji> Ví dụ: 500000\n\n"
+                    f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền tối thiểu: 50,000 VND",
+                    parse_mode='HTML',
                     reply_markup=get_back_menu()
                 )
                 context.user_data['pending_withdraw'] = True
@@ -1944,48 +2059,65 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if result['success']:
                     withdraw_info = result['withdraw_info']
                     msg = (
-                        f"💸 YÊU CẦU RÚT TIỀN ĐÃ GỬI!\n\n"
-                        f"💰 Số tiền yêu cầu: {withdraw_info['original']:,.0f} VND\n"
-                        f"📊 Phí rút ({WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,}): {withdraw_info['fee']:,.0f} VND\n"
-                        f"💵 Số tiền nhận được: {withdraw_info['after_fee']:,.0f} VND\n"
-                        f"📉 Số dư sau khi trừ: {result['new_balance']:,.0f} VND\n\n"
-                        f"🏦 Tài khoản nhận:\n"
-                        f"   🏦 {result['withdraw_bank']['bank']}\n"
-                        f"   💳 {result['withdraw_bank']['stk']}\n"
-                        f"   👤 {result['withdraw_bank']['name']}\n\n"
-                        f"⏳ Vui lòng chờ admin xác nhận!"
+                        f"<tg-emoji emoji-id='5375312095346704820'>💸</tg-emoji> YÊU CẦU RÚT TIỀN ĐÃ GỬI!\n\n"
+                        f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền yêu cầu: {withdraw_info['original']:,.0f} VND\n"
+                        f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Phí rút ({WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,}): {withdraw_info['fee']:,.0f} VND\n"
+                        f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Số tiền nhận được: {withdraw_info['after_fee']:,.0f} VND\n"
+                        f"<tg-emoji emoji-id='5246762912428603768'>📉</tg-emoji> Số dư sau khi trừ: {result['new_balance']:,.0f} VND\n\n"
+                        f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> Tài khoản nhận:\n"
+                        f"   <tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> {result['withdraw_bank']['bank']}\n"
+                        f"   <tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> {result['withdraw_bank']['stk']}\n"
+                        f"   <tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> {result['withdraw_bank']['name']}\n\n"
+                        f"<tg-emoji emoji-id='5454415424319931791'>⏳</tg-emoji> Vui lòng chờ admin xác nhận!"
                     )
-                    await query.edit_message_text(msg, reply_markup=get_back_menu())
+                    await query.edit_message_text(
+                        msg, 
+                        parse_mode='HTML',
+                        reply_markup=get_back_menu()
+                    )
                     
                     # Gửi thông báo cho admin (CÓ THÔNG TIN BANK NHẬN)
                     for admin_id in ADMIN_IDS:
                         try:
                             admin_msg = (
-                                f"🆕 YÊU CẦU RÚT TIỀN MỚI!\n\n"
-                                f"👤 User ID: {user_id}\n"
-                                f"💰 Số tiền: {withdraw_info['original']:,.0f} VND\n"
-                                f"💵 Sau phí: {withdraw_info['after_fee']:,.0f} VND\n"
-                                f"📊 Phí: {withdraw_info['fee']:,.0f} VND\n"
-                                f"📉 Số dư còn lại: {result['new_balance']:,.0f} VND\n\n"
-                                f"🏦 THÔNG TIN TÀI KHOẢN NHẬN TIỀN:\n"
-                                f"   🏦 Ngân hàng: {result['withdraw_bank']['bank']}\n"
-                                f"   💳 STK: {result['withdraw_bank']['stk']}\n"
-                                f"   👤 Chủ TK: {result['withdraw_bank']['name']}\n\n"
-                                f"🆔 Mã yêu cầu: {result['request_id']}"
+                                f"<tg-emoji emoji-id='5213394688735717942'>🆕</tg-emoji> YÊU CẦU RÚT TIỀN MỚI!\n\n"
+                                f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> User ID: {user_id}\n"
+                                f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền: {withdraw_info['original']:,.0f} VND\n"
+                                f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Sau phí: {withdraw_info['after_fee']:,.0f} VND\n"
+                                f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Phí: {withdraw_info['fee']:,.0f} VND\n"
+                                f"<tg-emoji emoji-id='5246762912428603768'>📉</tg-emoji> Số dư còn lại: {result['new_balance']:,.0f} VND\n\n"
+                                f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> THÔNG TIN TÀI KHOẢN NHẬN TIỀN:\n"
+                                f"   <tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> Ngân hàng: {result['withdraw_bank']['bank']}\n"
+                                f"   <tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> STK: {result['withdraw_bank']['stk']}\n"
+                                f"   <tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> Chủ TK: {result['withdraw_bank']['name']}\n\n"
+                                f"<tg-emoji emoji-id='5836782704686798781'>🆔</tg-emoji> Mã yêu cầu: {result['request_id']}"
                             )
                             keyboard = [[
-                                InlineKeyboardButton("✅ Xác nhận", callback_data=f"approve_withdraw_{result['request_id']}"),
-                                InlineKeyboardButton("❌ Từ chối", callback_data=f"reject_withdraw_{result['request_id']}")
+                                InlineKeyboardButton(
+                                    text="Xác nhận",
+                                    icon_custom_emoji_id="5440547189669516347",
+                                    callback_data=f"approve_withdraw_{result['request_id']}"
+                                ),
+                                InlineKeyboardButton(
+                                    text="Từ chối",
+                                    icon_custom_emoji_id="5210952531676504517",
+                                    callback_data=f"reject_withdraw_{result['request_id']}"
+                                )
                             ]]
                             await context.bot.send_message(
                                 chat_id=admin_id, 
                                 text=admin_msg,
+                                parse_mode='HTML',
                                 reply_markup=InlineKeyboardMarkup(keyboard)
                             )
                         except Exception as e:
                             print(f"❌ Lỗi gửi admin: {e}")
                 else:
-                    await query.edit_message_text(f"❌ {result['error']}", reply_markup=get_back_menu())
+                    await query.edit_message_text(
+                        f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> {result['error']}",
+                        parse_mode='HTML',
+                        reply_markup=get_back_menu()
+                    )
     elif data == "select_amount":
         user_id_str = str(user_id)
         banks = user_withdraw_banks.get(user_id_str, [])
@@ -1993,8 +2125,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if not banks:
             await query.edit_message_text(
-                "❌ BẠN CHƯA CÓ TÀI KHOẢN RÚT TIỀN!\n\n"
-                "📝 Vui lòng thêm tài khoản bằng nút '➕ THÊM TÀI KHOẢN RÚT' trước khi rút.",
+                f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> BẠN CHƯA CÓ TÀI KHOẢN RÚT TIỀN!\n\n"
+                f"<tg-emoji emoji-id='5197269100878907942'>📝</tg-emoji> Vui lòng thêm tài khoản bằng nút '<tg-emoji emoji-id=''>➕</tg-emoji> THÊM TÀI KHOẢN RÚT' trước khi rút.",
+                parse_mode='HTML',
                 reply_markup=get_withdraw_bank_menu(user_id)
             )
             return
@@ -2015,20 +2148,22 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard.append([InlineKeyboardButton("🔙 Quay lại", callback_data="menu_withdraw")])
             
             await query.edit_message_text(
-                f"💰 RÚT TIỀN\n\n"
-                f"📊 Số dư: {balance:,.0f} VND\n"
-                f"💵 Phí: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
-                f"📌 Vui lòng chọn tài khoản nhận tiền:",
+                f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> RÚT TIỀN\n\n"
+                f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Số dư: {balance:,.0f} VND\n"
+                f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Phí: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
+                f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Vui lòng chọn tài khoản nhận tiền:",
+                parse_mode='HTML',
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         else:
             # Đã chọn tài khoản, hiển thị menu chọn số tiền
             await query.edit_message_text(
-                f"💸 RÚT TIỀN\n\n"
-                f"📊 Số dư hiện tại: {balance:,.0f} VND\n"
-                f"💵 Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
-                f"💰 Sau khi trừ phí: {calculate_withdraw_amount(balance)['after_fee']:,.0f} VND\n\n"
-                f"📌 Chọn số tiền muốn rút:",
+                f"<tg-emoji emoji-id='5373174941095050893'>💸</tg-emoji> RÚT TIỀN\n\n"
+                f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Số dư hiện tại: {balance:,.0f} VND\n"
+                f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
+                f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Sau khi trừ phí: {calculate_withdraw_amount(balance)['after_fee']:,.0f} VND\n\n"
+                f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Chọn số tiền muốn rút:",
+                parse_mode='HTML',
                 reply_markup=get_withdraw_amount_menu(user_id, selected_index)
             )
 
@@ -2043,13 +2178,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if 0 <= bank_index < len(banks):
             bank = banks[bank_index]
             await query.edit_message_text(
-                f"✅ ĐÃ CHỌN TÀI KHOẢN:\n\n"
-                f"🏦 Ngân hàng: {bank['bank']}\n"
-                f"💳 STK: {bank['stk']}\n"
-                f"👤 Chủ TK: {bank['name']}\n\n"
-                f"💰 Số dư: {balance:,.0f} VND\n"
-                f"💵 Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
-                f"📌 Chọn số tiền muốn rút:",
+                f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> ĐÃ CHỌN TÀI KHOẢN:\n\n"
+                f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> Ngân hàng: {bank['bank']}\n"
+                f"<tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> STK: {bank['stk']}\n"
+                f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> Chủ TK: {bank['name']}\n\n"
+                f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số dư: {balance:,.0f} VND\n"
+                f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
+                f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Chọn số tiền muốn rút:",
+                parse_mode='HTML',
                 reply_markup=get_withdraw_amount_menu(user_id, bank_index)
             )
     # ========== ADMIN: MỞ BAN USER ==========
@@ -2315,7 +2451,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        status_msg = await update.message.reply_text(f"🔄 Đang tạo tài khoản {bank} cho {customer_name}...")
+        status_msg = await update.message.reply_text(
+            f"<tg-emoji emoji-id='5226702984204797593'>🔄</tg-emoji> Đang tạo tài khoản {bank} cho {customer_name}...",
+            parse_mode='HTML'
+        )
         
         # Chạy bất đồng bộ, không chờ
         asyncio.create_task(process_and_reply(status_msg, customer_name, bank, user_id))
@@ -2329,10 +2468,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parts = text.split('|')
             if len(parts) != 3:
                 await update.message.reply_text(
-                    "❌ Sai định dạng!\n\n"
-                    "📝 Cú pháp: `NGAN_HANG|SO_STK|TEN_CHU_TK`\n"
-                    "✨ Ví dụ: `MSB|9686687660001499498|TRAN VAN A`",
-                    parse_mode='Markdown',
+                    f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Sai định dạng!\n\n"
+                    f"<tg-emoji emoji-id='5285026110348731539'>📝</tg-emoji> Cú pháp: <code>NGAN_HANG|SO_STK|TEN_CHU_TK</code>\n"
+                    f"<tg-emoji emoji-id='5325547803936572038'>✨</tg-emoji> Ví dụ: <code>MSB|9686687660001499498|TRAN VAN A</code>",
+                    parse_mode='HTML',
                     reply_markup=get_back_menu()
                 )
                 return
@@ -2383,11 +2522,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_withdraw_banks()
             
             await update.message.reply_text(
-                f"✅ ĐÃ THÊM TÀI KHOẢN THÀNH CÔNG!\n\n"
-                f"🏦 Ngân hàng: {bank_name}\n"
-                f"💳 STK: {stk}\n"
-                f"👤 Chủ TK: {account_name}\n\n"
-                f"📌 Giờ bạn có thể chọn tài khoản này để rút tiền.",
+                f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> ĐÃ THÊM TÀI KHOẢN THÀNH CÔNG!\n\n"
+                f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> Ngân hàng: {bank_name}\n"
+                f"<tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> STK: {stk}\n"
+                f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> Chủ TK: {account_name}\n\n"
+                f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Giờ bạn có thể chọn tài khoản này để rút tiền.",
+                parse_mode='HTML',
                 reply_markup=get_withdraw_bank_menu(user_id)
             )
         except Exception as e:

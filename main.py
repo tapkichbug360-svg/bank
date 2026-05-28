@@ -1609,6 +1609,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pending_users.append(str(user_id))
     save_pending_users()
     
+    # Gửi thông báo cho user
     await update.message.reply_text(
         f"<tg-emoji emoji-id='5285265460286217966'>✅</tg-emoji> <b>ĐÃ GỬI YÊU CẦU DUYỆT!</b>\n\n"
         f"<tg-emoji emoji-id='5364109867156001787'>🆔</tg-emoji> User ID: {user_id}\n"
@@ -1617,6 +1618,39 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<tg-emoji emoji-id='5422439311196834318'>💡</tg-emoji> Lưu ý: Nếu chưa được duyệt sau 5 phút, vui lòng liên hệ admin!",
         parse_mode='HTML'
     )
+    
+    # GỬI CHO ADMIN - CÓ NÚT BẤM DUYỆT NGAY
+    admin_message = (
+        f"<tg-emoji emoji-id='5213394688735717942'>🆕</tg-emoji> <b>USER MỚI ĐĂNG KÝ!</b>\n\n"
+        f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> User ID: <code>{user_id}</code>\n"
+        f"<tg-emoji emoji-id='5422439311196834318'>📌</tg-emoji> Tên: {update.effective_user.first_name}\n"
+        f"<tg-emoji emoji-id='5461151367559141950'>👋</tg-emoji> Username: @{update.effective_user.username if update.effective_user.username else 'Không có'}\n"
+    )
+    
+    # Tạo nút bấm duyệt và từ chối
+    keyboard = [[
+        InlineKeyboardButton(
+            text="✅ DUYỆT",
+            icon_custom_emoji_id="5440547189669516347",
+            callback_data=f"approve_user_{user_id}"
+        ),
+        InlineKeyboardButton(
+            text="❌ TỪ CHỐI",
+            icon_custom_emoji_id="5210952531676504517",
+            callback_data=f"reject_user_{user_id}"
+        )
+    ]]
+    
+    for admin_id in ADMIN_IDS:
+        try:
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=admin_message,
+                parse_mode='HTML',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except Exception as e:
+            print(f"❌ Lỗi gửi thông báo admin {admin_id}: {e}")
 async def approve_user(user_id, context):
     """Duyệt user"""
     user_id_str = str(user_id)
@@ -1631,13 +1665,14 @@ async def approve_user(user_id, context):
         approved_users.append(user_id_str)
         save_approved_users()
     
-    # Thông báo cho user
+    # Thông báo cho user (thêm emoji động)
     try:
         await context.bot.send_message(
             chat_id=int(user_id),
-            text=f"✅ TÀI KHOẢN CỦA BẠN ĐÃ ĐƯỢC DUYỆT!\n\n"
-                 f"🎉 Chào mừng bạn đến với bot!\n"
-                 f"📌 Gửi /start để bắt đầu sử dụng.\n\n"
+            text=f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> <b>TÀI KHOẢN CỦA BẠN ĐÃ ĐƯỢC DUYỆT!</b>\n\n"
+                 f"<tg-emoji emoji-id='5325547803936572038'>🎉</tg-emoji> Chào mừng bạn đến với bot!\n"
+                 f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Gửi /start để bắt đầu sử dụng.",
+            parse_mode='HTML'
         )
     except:
         pass
@@ -1904,7 +1939,78 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = "📋 ĐƠN HÀNG ĐANG THEO DÕI\n\n🔍 Bạn chưa có đơn hàng nào đang theo dõi."
         
         await query.edit_message_text(msg, reply_markup=get_back_menu())
-    
+    # Xử lý duyệt/từ chối user từ nút bấm
+    elif data.startswith("approve_user_"):
+        if not is_admin(user_id):
+            await query.edit_message_text("❌ Bạn không có quyền!", reply_markup=get_back_menu())
+            return
+        
+        target_id = data.replace("approve_user_", "")
+        
+        # Duyệt user
+        user_id_str = str(target_id)
+        if user_id_str in pending_users:
+            pending_users.remove(user_id_str)
+            save_pending_users()
+        
+        if user_id_str not in approved_users:
+            approved_users.append(user_id_str)
+            save_approved_users()
+        
+        # Thông báo cho user
+        try:
+            await context.bot.send_message(
+                chat_id=int(target_id),
+                text=f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> <b>TÀI KHOẢN CỦA BẠN ĐÃ ĐƯỢC DUYỆT!</b>\n\n"
+                    f"<tg-emoji emoji-id='5325547803936572038'>🎉</tg-emoji> Chào mừng bạn đến với bot!\n"
+                    f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> Gửi /start để bắt đầu sử dụng.",
+                parse_mode='HTML'
+            )
+        except:
+            pass
+        
+        # Sửa tin nhắn admin
+        await query.edit_message_text(
+            f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> <b>ĐÃ DUYỆT USER!</b>\n\n"
+            f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> User ID: {target_id}\n"
+            f"<tg-emoji emoji-id='5285265460286217966'>✅</tg-emoji> User đã được kích hoạt.",
+            parse_mode='HTML'
+        )
+        await query.answer("✅ Đã duyệt user thành công!")
+
+    elif data.startswith("reject_user_"):
+        if not is_admin(user_id):
+            await query.edit_message_text("❌ Bạn không có quyền!", reply_markup=get_back_menu())
+            return
+        
+        target_id = data.replace("reject_user_", "")
+        
+        # Từ chối user
+        user_id_str = str(target_id)
+        if user_id_str in pending_users:
+            pending_users.remove(user_id_str)
+            save_pending_users()
+        
+        # Thông báo cho user
+        try:
+            await context.bot.send_message(
+                chat_id=int(target_id),
+                text=f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> <b>YÊU CẦU DUYỆT CỦA BẠN ĐÃ BỊ TỪ CHỐI!</b>\n\n"
+                    f"<tg-emoji emoji-id='5422439311196834318'>📞</tg-emoji> Vui lòng liên hệ admin để biết thêm chi tiết.\n"
+                    f"<tg-emoji emoji-id='5364109867156001787'>🆔</tg-emoji> User ID của bạn: {target_id}",
+                parse_mode='HTML'
+            )
+        except:
+            pass
+        
+        # Sửa tin nhắn admin
+        await query.edit_message_text(
+            f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> <b>ĐÃ TỪ CHỐI USER!</b>\n\n"
+            f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> User ID: {target_id}\n"
+            f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> User đã bị từ chối.",
+            parse_mode='HTML'
+        )
+        await query.answer("❌ Đã từ chối user!")
     elif data == "menu_withdraw":
         user_id_str = str(user_id)
         balance = user_balance.get(user_id_str, {}).get('balance', 0)

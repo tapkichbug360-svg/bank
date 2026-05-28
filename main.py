@@ -1212,19 +1212,19 @@ async def send_payment_notification(user_id, order_code, amount, order_info, new
     try:
         bot = Bot(token=BOT_TOKEN)
         message = (
-            f"💰 CÓ TIỀN VỀ! 💰\n\n"
-            f"✅ Đơn hàng: {order_code}\n"
-            f"👤 Khách hàng: {order_info.get('customer_name', 'N/A')}\n"
-            f"🏦 Ngân hàng: {order_info.get('bank', 'MSB')}\n"
-            f"💳 STK: {order_info.get('stk', 'N/A')}\n"
-            f"💵 Số tiền: {amount:,.0f} VND\n"
-            f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n\n"
-            f"📊 Số dư hiện tại: {new_balance:,.0f} VND"
+            f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> CÓ TIỀN VỀ! <tg-emoji emoji-id=''>💰</tg-emoji>\n\n"
+            f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> Đơn hàng: {order_code}\n"
+            f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> Khách hàng: {order_info.get('customer_name', 'N/A')}\n"
+            f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> Ngân hàng: {order_info.get('bank', 'MSB')}\n"
+            f"<tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> STK: {order_info.get('stk', 'N/A')}\n"
+            f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Số tiền: {amount:,.0f} VND\n"
+            f"<tg-emoji emoji-id='5440621591387980068'>🕐</tg-emoji> Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n\n"
+            f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Số dư hiện tại: {new_balance:,.0f} VND"
         )
         await bot.send_message(
             chat_id=int(user_id), 
-            text=message
-            # ❌ BỎ parse_mode='Markdown'
+            text=message,
+            parse_mode='HTML'  # ✅ THÊM DÒNG NÀY
         )
         print(f"📨 Đã gửi thông báo đến user {user_id} - {amount:,} VND")
     except Exception as e:

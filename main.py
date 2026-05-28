@@ -22,7 +22,10 @@ from selenium.webdriver.support import expected_conditions as EC
 import pickle
 # Thêm sau các import
 import logging
+from datetime import datetime, timedelta, timezone
 
+# Múi giờ Việt Nam (UTC+7)
+VIETNAM_TZ = timezone(timedelta(hours=7))
 # Cấu hình logging
 logging.basicConfig(
     level=logging.INFO,
@@ -55,7 +58,7 @@ def load_session():
         return True
     except:
         return False
-# ========== CẤU HÌNH ==========
+# ========== CẤU HÌNH ==========CÓ
 BOT_TOKEN = "8948961848:AAHBvyAW4k13-1UqFLO_AFnrBUXc0CYUs-4"
 EMAIL = "gohan@gmail.com"
 PASSWORD = "Go123456"
@@ -1160,44 +1163,46 @@ async def send_telegram_notification_async(user_id, order_code, amount, order_in
     try:
         # 1. TIN NHẮN CHO USER
         user_message = (
-            f"💰 CÓ TIỀN VỀ! 💰\n\n"
-            f"✅ Đơn hàng: {order_code}\n"
-            f"👤 Khách hàng: {order_info.get('customer_name', 'N/A')}\n"
-            f"🏦 Ngân hàng: {order_info.get('bank', 'MSB')}\n"
-            f"💳 STK: {order_info.get('stk', 'N/A')}\n"
-            f"💵 Số tiền: {amount:,.0f} VND\n"
-            f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n\n"
-            f"📊 Số dư hiện tại: {new_balance:,.0f} VND"
+            f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> CÓ TIỀN VỀ! <tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji>\n\n"
+            f"<tg-emoji emoji-id='5285265460286217966'>✅</tg-emoji> Đơn hàng: {order_code}\n"
+            f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> Khách hàng: {order_info.get('customer_name', 'N/A')}\n"
+            f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> Ngân hàng: {order_info.get('bank', 'MSB')}\n"
+            f"<tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> STK: {order_info.get('stk', 'N/A')}\n"
+            f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Số tiền: {amount:,.0f} VND\n"
+            f"<tg-emoji emoji-id='5440621591387980068'>🕐</tg-emoji> Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}\n\n"
+            f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Số dư hiện tại: {new_balance:,.0f} VND"
         )
         
         # 2. TIN NHẮN CHO ADMIN
         admin_message = (
-            f"💰 CÓ TIỀN VỀ! 💰\n\n"
-            f"✅ Đơn hàng: {order_code}\n"
-            f"👤 User ID: {user_id}\n"
-            f"👤 Khách hàng: {order_info.get('customer_name', 'N/A')}\n"
-            f"🏦 Ngân hàng: {order_info.get('bank', 'MSB')}\n"
-            f"💳 STK: {order_info.get('stk', 'N/A')}\n"
-            f"💵 Số tiền: {amount:,.0f} VND\n"
-            f"📊 Số dư user: {new_balance:,.0f} VND\n"
-            f"🕐 Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}"
+            f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> CÓ TIỀN VỀ! <tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji>\n\n"
+            f"<tg-emoji emoji-id='5285265460286217966'>✅</tg-emoji> Đơn hàng: {order_code}\n"
+            f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> User ID: {user_id}\n"
+            f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> Khách hàng: {order_info.get('customer_name', 'N/A')}\n"
+            f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> Ngân hàng: {order_info.get('bank', 'MSB')}\n"
+            f"<tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> STK: {order_info.get('stk', 'N/A')}\n"
+            f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Số tiền: {amount:,.0f} VND\n"
+            f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Số dư user: {new_balance:,.0f} VND\n"
+            f"<tg-emoji emoji-id='5440621591387980068'>🕐</tg-emoji> Thời gian: {datetime.now().strftime('%H:%M:%S %d/%m/%Y')}"
         )
         
         # 3. TẠO BOT VÀ GỬI ĐỒNG THỜI
         bot = Bot(token=BOT_TOKEN)
         tasks = []
         
-        # Gửi cho user (BỎ parse_mode='Markdown')
+        # Gửi cho user
         tasks.append(bot.send_message(
             chat_id=int(user_id), 
-            text=user_message
+            text=user_message,
+            parse_mode='HTML'
         ))
         
-        # Gửi cho tất cả admin (BỎ parse_mode='Markdown')
+        # Gửi cho tất cả admin
         for admin_id in ADMIN_IDS:
             tasks.append(bot.send_message(
                 chat_id=admin_id, 
-                text=admin_message
+                text=admin_message,
+                parse_mode='HTML'
             ))
         
         # GỬI TẤT CẢ CÙNG LÚC

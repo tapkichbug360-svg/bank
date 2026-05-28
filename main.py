@@ -59,7 +59,7 @@ def load_session():
     except:
         return False
 # ========== CẤU HÌNH ==========CÓ
-BOT_TOKEN = "8948961848:AAHBvyAW4k13-1UqFLO_AFnrBUXc0CYUs-4"
+BOT_TOKEN = "8622678604:AAHBbK7lP9-81dp8qPI_bDJmc_HzkkdbysY"
 EMAIL = "gohan@gmail.com"
 PASSWORD = "Go123456"
 BASE_URL = "https://veloragame.com"
@@ -1093,7 +1093,41 @@ def create_session_with_retry():
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     return session
-
+async def addmoney_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ Bạn không có quyền!")
+        return
+    
+    if len(context.args) != 2:
+        await update.message.reply_text("📌 CÁCH DÙNG:\n/addmoney <user_id> <số_tiền>")
+        return
+    
+    target_id = str(context.args[0])
+    amount = int(context.args[1])
+    
+    if target_id not in user_balance:
+        user_balance[target_id] = {
+            'balance': 0,
+            'total_orders': 0,
+            'last_update': '',
+            'history': [],
+            'withdraw_history': []
+        }
+    
+    old_balance = user_balance[target_id]['balance']
+    user_balance[target_id]['balance'] += amount
+    user_balance[target_id]['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    save_balance()  # Lưu vào file
+    
+    await update.message.reply_text(
+        f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> Đã cộng {amount:,.0f} VND cho user {target_id}\n\n"
+        f"💰 Số dư cũ: {old_balance:,.0f} VND\n"
+        f"💵 Số dư mới: {user_balance[target_id]['balance']:,.0f} VND",
+        parse_mode='HTML'
+    )
 # Trong login_and_get_cookies, thay session = create_session_with_retry()
 async def check_for_new_payments(html):
     global tracking_orders, user_balance
@@ -1635,12 +1669,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Tạo nút bấm duyệt và từ chối
     keyboard = [[
         InlineKeyboardButton(
-            text="✅ DUYỆT",
+            text="DUYỆT",
             icon_custom_emoji_id="5440547189669516347",
             callback_data=f"approve_user_{user_id}"
         ),
         InlineKeyboardButton(
-            text="❌ TỪ CHỐI",
+            text="TỪ CHỐI",
             icon_custom_emoji_id="5210952531676504517",
             callback_data=f"reject_user_{user_id}"
         )
@@ -2457,7 +2491,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ========== XỬ LÝ DUYỆT/TỪ CHỐI RÚT TIỀN ==========
     elif data.startswith("approve_withdraw_"):
         if not is_admin(user_id):
-            await query.edit_message_text("❌ Bạn không có quyền!", reply_markup=get_back_menu())
+            await query.edit_message_text(
+                f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Bạn không có quyền!",
+                parse_mode='HTML',
+                reply_markup=get_back_menu()
+            )
             return
         
         request_id = data.replace("approve_withdraw_", "")
@@ -2465,7 +2503,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if result['success']:
             await query.edit_message_text(
-                f"✅ Đã xác nhận rút tiền!\n🆔 Mã: {request_id}\n💰 Số tiền đã chuyển: {result['amount']:,.0f} VND",
+                f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> Đã xác nhận rút tiền!\n"
+                f"<tg-emoji emoji-id='5836782704686798781'>🆔</tg-emoji> Mã: {request_id}\n"
+                f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền đã chuyển: {result['amount']:,.0f} VND",
+                parse_mode='HTML',
                 reply_markup=get_back_menu()
             )
             
@@ -2473,12 +2514,21 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.send_message(
                     chat_id=result['user_id'],
-                    text=f"✅ YÊU CẦU RÚT TIỀN ĐÃ ĐƯỢC XÁC NHẬN!\n\n💰 Số tiền: {result['amount']:,.0f} VND đã được chuyển.\n📊 Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND"
+                    text=(
+                        f"<tg-emoji emoji-id='5440547189669516347'>✅</tg-emoji> YÊU CẦU RÚT TIỀN ĐÃ ĐƯỢC XÁC NHẬN!\n\n"
+                        f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền: {result['amount']:,.0f} VND đã được chuyển.\n"
+                        f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND"
+                    ),
+                    parse_mode='HTML'
                 )
             except:
                 pass
         else:
-            await query.edit_message_text(f"❌ {result['error']}", reply_markup=get_back_menu())
+            await query.edit_message_text(
+                f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> {result['error']}",
+                parse_mode='HTML',
+                reply_markup=get_back_menu()
+            )
     
     elif data.startswith("reject_withdraw_"):
         if not is_admin(user_id):
@@ -2591,21 +2641,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stk = parts[1].strip()
             account_name = parts[2].strip().upper()
             
-            # Kiểm tra ngân hàng hợp lệ
-            valid_banks = ['MSB', 'BIDV', 'VCB', 'VIETINBANK', 'ACB', 'TPBANK']
-            if bank_name not in valid_banks:
-                await update.message.reply_text(
-                    f"❌ Ngân hàng '{bank_name}' không hợp lệ!\n"
-                    f"🏦 Hỗ trợ: {', '.join(valid_banks)}",
-                    reply_markup=get_back_menu()
-                )
-                return
+            # ✅ ĐÃ XÓA PHẦN KIỂM TRA NGÂN HÀNG HỢP LỆ
+            # Cho phép tất cả các ngân hàng: Vietcombank, Techcombank, VPBank, Sacombank, SHB, v.v...
             
-            # Kiểm tra STK (10-20 số)
-            if not stk.isdigit() or len(stk) < 10 or len(stk) > 20:
+            # Kiểm tra STK (8-20 số - linh hoạt hơn)
+            if not stk.isdigit() or len(stk) < 8 or len(stk) > 20:
                 await update.message.reply_text(
-                    "❌ Số tài khoản không hợp lệ!\n"
-                    "📌 STK phải là số và có 10-20 chữ số.",
+                    f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Số tài khoản không hợp lệ!\n"
+                    f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> STK phải là số và có 8-20 chữ số.",
+                    parse_mode='HTML',
                     reply_markup=get_back_menu()
                 )
                 return
@@ -2619,7 +2663,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for existing in user_withdraw_banks[user_id_str]:
                 if existing['stk'] == stk:
                     await update.message.reply_text(
-                        "⚠️ Số tài khoản này đã được thêm trước đó!",
+                        f"<tg-emoji emoji-id='5420323339723881652'>⚠️</tg-emoji> Số tài khoản này đã được thêm trước đó!",
+                        parse_mode='HTML',
                         reply_markup=get_back_menu()
                     )
                     return
@@ -2642,16 +2687,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_withdraw_bank_menu(user_id)
             )
         except Exception as e:
-            await update.message.reply_text(f"❌ Lỗi: {e}\n\nVui lòng thử lại!", reply_markup=get_back_menu())
+            await update.message.reply_text(
+                f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Lỗi: {e}\n\nVui lòng thử lại!",
+                parse_mode='HTML',
+                reply_markup=get_back_menu()
+            )
         return
-        # Xử lý nhập số tiền rút
-    # Xử lý nhập số tiền rút (cách nhanh)
     if context.user_data.get('pending_withdraw_amount'):
         context.user_data.pop('pending_withdraw_amount')
         try:
             amount = int(text.replace('.', '').replace(',', ''))
             if amount < 50000:
-                await update.message.reply_text("❌ Số tiền rút tối thiểu là 50,000 VND!", reply_markup=get_back_menu())
+                await update.message.reply_text(
+                    f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Số tiền rút tối thiểu là 50,000 VND!",
+                    parse_mode='HTML',
+                    reply_markup=get_back_menu()
+                )
                 return
             
             # Lấy bank đã chọn
@@ -2663,44 +2714,65 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if result['success']:
                 withdraw_info = result['withdraw_info']
                 msg = (
-                    f"💸 YÊU CẦU RÚT TIỀN ĐÃ GỬI!\n\n"
-                    f"💰 Số tiền: {withdraw_info['original']:,.0f} VND\n"
-                    f"📊 Phí (15%+5k): {withdraw_info['fee']:,.0f} VND\n"
-                    f"💵 Nhận được: {withdraw_info['after_fee']:,.0f} VND\n"
-                    f"📉 Số dư còn lại: {result['new_balance']:,.0f} VND\n\n"
-                    f"⏳ Chờ admin xác nhận!"
+                    f"<tg-emoji emoji-id='5375312095346704820'>💸</tg-emoji> YÊU CẦU RÚT TIỀN ĐÃ GỬI!\n\n"
+                    f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền: {withdraw_info['original']:,.0f} VND\n"
+                    f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Phí (15%+5k): {withdraw_info['fee']:,.0f} VND\n"
+                    f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Nhận được: {withdraw_info['after_fee']:,.0f} VND\n"
+                    f"<tg-emoji emoji-id='5246762912428603768'>📉</tg-emoji> Số dư còn lại: {result['new_balance']:,.0f} VND\n\n"
+                    f"<tg-emoji emoji-id='5454415424319931791'>⏳</tg-emoji> Chờ admin xác nhận!"
                 )
-                await update.message.reply_text(msg, reply_markup=get_back_menu())
+                await update.message.reply_text(
+                    msg,
+                    parse_mode='HTML',
+                    reply_markup=get_back_menu()
+                )
                 
                 # Gửi thông báo cho admin
                 for admin_id in ADMIN_IDS:
                     try:
                         admin_msg = (
-                            f"🆕 YÊU CẦU RÚT TIỀN MỚI!\n\n"
-                            f"👤 User ID: {user_id}\n"
-                            f"💰 Số tiền: {withdraw_info['original']:,.0f} VND\n"
-                            f"💵 Sau phí: {withdraw_info['after_fee']:,.0f} VND\n"
-                            f"🏦 Bank: {result['withdraw_bank']['bank']}\n"
-                            f"💳 STK: {result['withdraw_bank']['stk']}\n"
-                            f"👤 Chủ TK: {result['withdraw_bank']['name']}\n"
-                            f"📉 Số dư còn lại: {result['new_balance']:,.0f} VND\n"
-                            f"🆔 Mã: {result['request_id']}"
+                            f"<tg-emoji emoji-id='5213394688735717942'>🆕</tg-emoji> YÊU CẦU RÚT TIỀN MỚI!\n\n"
+                            f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> User ID: {user_id}\n"
+                            f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền: {withdraw_info['original']:,.0f} VND\n"
+                            f"<tg-emoji emoji-id='5409048419211682843'>💵</tg-emoji> Sau phí: {withdraw_info['after_fee']:,.0f} VND\n"
+                            f"<tg-emoji emoji-id='5264895611517300926'>🏦</tg-emoji> Bank: {result['withdraw_bank']['bank']}\n"
+                            f"<tg-emoji emoji-id='5267300544094948794'>💳</tg-emoji> STK: {result['withdraw_bank']['stk']}\n"
+                            f"<tg-emoji emoji-id='5364109867156001787'>👤</tg-emoji> Chủ TK: {result['withdraw_bank']['name']}\n"
+                            f"<tg-emoji emoji-id='5246762912428603768'>📉</tg-emoji> Số dư còn lại: {result['new_balance']:,.0f} VND\n"
+                            f"<tg-emoji emoji-id='5836782704686798781'>🆔</tg-emoji> Mã: {result['request_id']}"
                         )
                         keyboard = [[
-                            InlineKeyboardButton("✅ Xác nhận", callback_data=f"approve_withdraw_{result['request_id']}"),
-                            InlineKeyboardButton("❌ Từ chối", callback_data=f"reject_withdraw_{result['request_id']}")
+                            InlineKeyboardButton(
+                                text="Xác nhận",
+                                icon_custom_emoji_id="5440547189669516347",
+                                callback_data=f"approve_withdraw_{result['request_id']}"
+                            ),
+                            InlineKeyboardButton(
+                                text="Từ chối",
+                                icon_custom_emoji_id="5210952531676504517",
+                                callback_data=f"reject_withdraw_{result['request_id']}"
+                            )
                         ]]
                         await context.bot.send_message(
                             chat_id=admin_id, 
                             text=admin_msg,
+                            parse_mode='HTML',
                             reply_markup=InlineKeyboardMarkup(keyboard)
                         )
                     except:
                         pass
             else:
-                await update.message.reply_text(f"❌ {result['error']}", reply_markup=get_back_menu())
+                await update.message.reply_text(
+                    f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> {result['error']}",
+                    parse_mode='HTML',
+                    reply_markup=get_back_menu()
+                )
         except:
-            await update.message.reply_text("❌ Số tiền không hợp lệ! Vui lòng nhập số.", reply_markup=get_back_menu())
+            await update.message.reply_text(
+                f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Số tiền không hợp lệ! Vui lòng nhập số.",
+                parse_mode='HTML',
+                reply_markup=get_back_menu()
+            )
         return
     
     # Xử lý ban user (admin)
@@ -2899,7 +2971,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CommandHandler("chat", chat_command))
     app.add_handler(CommandHandler("duyet", duyet_command))
-    
+    app.add_handler(CommandHandler("addmoney", addmoney_command))
     print("✅ Bot đang chạy! Kiểm tra đơn hàng mỗi 10 giây")
     print(f"👥 Admin IDs: {ADMIN_IDS}")
     print("="*50)

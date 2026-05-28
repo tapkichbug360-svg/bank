@@ -742,7 +742,7 @@ async def check_orders_loop():
             traceback.print_exc()                     # ✅ THÊM: IN CHI TIẾT LỖI
             await asyncio.sleep(15)
         
-        await asyncio.sleep(10)                       # ✅ GIỮ NGUYÊN 10s
+        await asyncio.sleep(30)                       # ✅ GIỮ NGUYÊN 10s
 def is_session_valid():
     """Kiểm tra session có còn hiệu lực không"""
     try:
@@ -769,19 +769,19 @@ async def refresh_session_periodically():
 async def check_for_new_payments_async(html):
     global tracking_orders, user_balance
     
-    from datetime import datetime  # ✅ THÊM DÒNG NÀY
+    from datetime import datetime
     
     print("🔍 Đang kiểm tra đơn hàng có tiền về...")
     
     # Lấy danh sách order_code từ HTML
     order_codes_in_html = set(re.findall(r'ORD-[A-Z0-9]{25}', html))
     
-    # 1. KIỂM TRA TRONG DANH SÁCH ORDERS
+    # ========== 1. KIỂM TRA TRONG DANH SÁCH ORDERS (TUẦN TỰ - NHANH) ==========
     for order_code, order_info in tracking_orders.items():
         if order_info.get('status') == 'paid':
             continue
         
-        # ========== ✅ THÊM: BỎ QUA ĐƠN QUÁ 24 GIỜ ==========
+        # Bỏ qua đơn quá 24 giờ
         created_at = order_info.get('created_at')
         if created_at:
             try:
@@ -794,121 +794,149 @@ async def check_for_new_payments_async(html):
                     continue
             except:
                 pass
-        # ===================================================
         
         actual_amount = None
         
         if order_code in html:
-            # ========== SỬA: THÊM NHIỀU PATTERN HƠN ==========
-            # Pattern 1: Tìm số tiền trong cùng dòng hoặc gần đó
             patterns = [
-                r'<td data-label="Số tiền">([\d.]+)</td>',      # Định dạng 2.000
-                r'<td data-label="Số tiền">([\d,]+)</td>',      # Định dạng 2,000
-                r'<td data-label="Số tiền">(\d+)</td>',         # Định dạng 2000
-                r'Số tiền["\']?>([\d.,]+)',                     # Tìm gần label
-                r'(\d{1,3}(?:[.,]\d{3})*)\s*(?:VND|đ|vnd)',    # Regex linh hoạt
+                r'<td data-label="Số tiền">([\d.]+)</td>',
+                r'<td data-label="Số tiền">([\d,]+)</td>',
+                r'<td data-label="Số tiền">(\d+)</td>',
+                r'Số tiền["\']?>([\d.,]+)',
+                r'(\d{1,3}(?:[.,]\d{3})*)\s*(?:VND|đ|vnd)',
             ]
             
-            # Tìm đoạn HTML xung quanh order_code
             idx = html.find(order_code)
             if idx != -1:
-                # Lấy 1000 ký tự xung quanh order_code
                 surrounding = html[max(0, idx-500):min(len(html), idx+500)]
                 
                 for pattern in patterns:
                     match = re.search(pattern, surrounding, re.IGNORECASE | re.DOTALL)
                     if match:
-                        amount_str = match.group(1)
-                        # Xóa dấu chấm hoặc dấu phẩy
-                        amount_str = amount_str.replace('.', '').replace(',', '')
+                        amount_str = match.group(1).replace('.', '').replace(',', '')
                         try:
                             actual_amount = int(amount_str)
                             if actual_amount > 0:
-                                print(f"💰 Tìm thấy {order_code}: {actual_amount:,} VND (pattern: {pattern[:30]})")
+                                print(f"💰 Tìm thấy {order_code}: {actual_amount:,} VND")
                                 break
                         except:
                             continue
         
         if actual_amount is not None and actual_amount > 0:
-            # ========== ✅ THÊM: BỎ QUA SỐ TIỀN 1000 (TIỀN MẶC ĐỊNH KHI TẠO) ==========
             if actual_amount <= 1000:
-                print(f"⚠️ Bỏ qua đơn {order_code} với số tiền {actual_amount:,} VND (tiền mặc định khi tạo đơn)")
-                # Không đánh dấu paid, để sau này check lại khi có tiền thật
+                print(f"⚠️ Bỏ qua đơn {order_code} với số tiền {actual_amount:,} VND (tiền mặc định)")
                 continue
-            # ========================================================================
             
             await process_payment(order_code, order_info, actual_amount)
     
-    # 2. KIỂM TRA TRANG CHI TIẾT CHO ĐƠN CHƯA XỬ LÝ
-    for order_code, order_info in tracking_orders.items():
-        if order_info.get('status') == 'paid':
-            continue
+    # ========== 2. KIỂM TRA TRANG CHI TIẾT (SONG SONG) ==========
+    # Tạo danh sách các đơn cần check chi tiết
+    pending_orders = [
+        (code, info) for code, info in tracking_orders.items()
+        if info.get('status') != 'paid'
+    ]
+    
+    if pending_orders:
+        print(f"🚀 Đang kiểm tra song song {len(pending_orders)} đơn qua trang chi tiết...")
         
-        # ========== ✅ THÊM: BỎ QUA ĐƠN QUÁ 24 GIỜ ==========
-        created_at = order_info.get('created_at')
-        if created_at:
-            try:
-                created_time = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
-                hours_ago = (datetime.now() - created_time).total_seconds() / 3600
-                if hours_ago >= 24:
-                    print(f"⏰ Đơn {order_code} đã quá 24 giờ ({hours_ago:.1f}h), bỏ qua kiểm tra chi tiết")
-                    tracking_orders[order_code]['status'] = 'expired'
-                    save_tracking()
-                    continue
-            except:
-                pass
-        # ===================================================
+        # Tạo task cho từng đơn
+        tasks = [check_order_detail_parallel(code, info) for code, info in pending_orders]
         
-        # Kiểm tra trang chi tiết
-        detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"
-        try:
-            detail_response = await asyncio.to_thread(session.get, detail_url, timeout=30)
-            if detail_response.status_code == 200:
-                detail_html = detail_response.text
-                
-                # ========== SỬA: THÊM NHIỀU PATTERN CHO TRANG CHI TIẾT ==========
-                amount_match = None
-                
-                # Pattern cho số tiền với dấu chấm hoặc dấu phẩy
-                patterns_detail = [
-                    r'Số tiền.*?(\d{1,3}(?:[.,]\d{3})*)\s*(?:VND|đ|vnd)',
-                    r'<td[^>]*class="[^"]*amount[^"]*"[^>]*>([\d.,]+)<',
-                    r'class="[^"]*price[^"]*"[^>]*>([\d.,]+)<',
-                    r'(\d{1,3}(?:[.,]\d{3})*)\s*(?:VND|đ)',
-                    r'([\d.,]+)\s*(?:VND|đ)',
-                ]
-                
-                for pattern in patterns_detail:
-                    amount_match = re.search(pattern, detail_html, re.DOTALL | re.IGNORECASE)
-                    if amount_match:
-                        amount_str = amount_match.group(1).replace('.', '').replace(',', '')
-                        try:
-                            actual_amount = int(amount_str)
-                            if actual_amount > 0:
-                                # ========== ✅ THÊM: BỎ QUA SỐ TIỀN 1000 ==========
-                                if actual_amount <= 1000:
-                                    print(f"⚠️ Bỏ qua đơn {order_code} với số tiền {actual_amount:,} VND (tiền mặc định) - chi tiết")
-                                    break
-                                # ================================================
-                                
-                                print(f"🔍 Phát hiện đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
-                                await process_payment(order_code, order_info, actual_amount)
-                                break
-                        except:
-                            continue
-                
-                # Nếu không tìm thấy số tiền nhưng có trạng thái xác nhận
-                if amount_match is None and ('Xác nhận' in detail_html or 'is-success' in detail_html):
-                    print(f"⚠️ Đơn {order_code} có trạng thái xác nhận, lấy số tiền mặc định: {order_info.get('amount', 0)} VND")
-                    default_amount = order_info.get('amount', 0)
-                    if default_amount > 0 and default_amount > 1000:  # ✅ THÊM: chỉ lấy nếu > 1000
-                        await process_payment(order_code, order_info, default_amount)
-                        
-        except Exception as e:
-            print(f"⚠️ Lỗi check chi tiết {order_code}: {e}")
+        # Chạy TẤT CẢ cùng lúc
+        await asyncio.gather(*tasks)
+        
+        print(f"✅ Đã kiểm tra xong {len(pending_orders)} đơn")
     
     save_tracking()
     save_balance()
+
+
+async def check_order_detail_parallel(order_code, order_info):
+    """Kiểm tra chi tiết 1 đơn (dùng cho song song)"""
+    from datetime import datetime
+    
+    if order_info.get('status') == 'paid':
+        return None
+    
+    # Bỏ qua đơn quá 24 giờ
+    created_at = order_info.get('created_at')
+    if created_at:
+        try:
+            created_time = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+            hours_ago = (datetime.now() - created_time).total_seconds() / 3600
+            if hours_ago >= 24:
+                print(f"⏰ Đơn {order_code} đã quá 24 giờ, bỏ qua")
+                tracking_orders[order_code]['status'] = 'expired'
+                save_tracking()
+                return None
+        except:
+            pass
+    
+    detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"
+    try:
+        detail_response = await asyncio.to_thread(session.get, detail_url, timeout=30)
+        if detail_response.status_code == 200:
+            detail_html = detail_response.text
+            
+            patterns_detail = [
+                r'Số tiền.*?(\d{1,3}(?:[.,]\d{3})*)\s*(?:VND|đ|vnd)',
+                r'<td[^>]*class="[^"]*amount[^"]*"[^>]*>([\d.,]+)<',
+                r'class="[^"]*price[^"]*"[^>]*>([\d.,]+)<',
+                r'(\d{1,3}(?:[.,]\d{3})*)\s*(?:VND|đ)',
+                r'([\d.,]+)\s*(?:VND|đ)',
+            ]
+            
+            for pattern in patterns_detail:
+                amount_match = re.search(pattern, detail_html, re.DOTALL | re.IGNORECASE)
+                if amount_match:
+                    amount_str = amount_match.group(1).replace('.', '').replace(',', '')
+                    try:
+                        actual_amount = int(amount_str)
+                        if actual_amount > 0:
+                            if actual_amount <= 1000:
+                                print(f"⚠️ Bỏ qua đơn {order_code} với số tiền {actual_amount:,} VND (tiền mặc định)")
+                                return None
+                            
+                            print(f"🔍 Phát hiện đơn {order_code} qua trang chi tiết: {actual_amount:,} VND")
+                            await process_payment(order_code, order_info, actual_amount)
+                            return True
+                    except:
+                        continue
+            
+            # Nếu có trạng thái xác nhận nhưng không tìm thấy số tiền
+            if 'Xác nhận' in detail_html or 'is-success' in detail_html:
+                print(f"⚠️ Đơn {order_code} có trạng thái xác nhận, lấy số tiền mặc định: {order_info.get('amount', 0)} VND")
+                default_amount = order_info.get('amount', 0)
+                if default_amount > 0 and default_amount > 1000:
+                    await process_payment(order_code, order_info, default_amount)
+                    return True
+                    
+    except Exception as e:
+        print(f"⚠️ Lỗi check chi tiết {order_code}: {e}")
+    
+    return False
+async def check_orders_parallel(html):
+    """Kiểm tra tất cả đơn song song"""
+    global tracking_orders
+    
+    # Lấy danh sách đơn cần kiểm tra (chưa paid)
+    pending_orders = [
+        (code, info) for code, info in tracking_orders.items() 
+        if info.get('status') != 'paid'
+    ]
+    
+    if not pending_orders:
+        return
+    
+    print(f"🚀 Đang kiểm tra song song {len(pending_orders)} đơn...")
+    
+    # Tạo task cho từng đơn (dùng chính hàm check_single_order của bạn)
+    tasks = [check_single_order(code, info) for code, info in pending_orders]
+    
+    # Chạy TẤT CẢ cùng lúc
+    await asyncio.gather(*tasks)
+    
+    print(f"✅ Đã kiểm tra xong {len(pending_orders)} đơn")
 async def check_single_order(order_code, order_info):
     """Kiểm tra trạng thái đơn hàng qua trang chi tiết"""
     detail_url = f"{BASE_URL}/virtual-accounts/views/{order_code}"

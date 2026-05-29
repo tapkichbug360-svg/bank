@@ -1301,7 +1301,7 @@ async def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
             'order_code': order_code,
             'napas_display_name': customer_name.upper(),
             'amount': '1000',
-            'collaborator_id': '1315',
+            'collaborator_id': '1326',
             'expires_in_days': '1'
         }
         print(f"📦 Data: {data}")

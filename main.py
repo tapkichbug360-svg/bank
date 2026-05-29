@@ -59,12 +59,12 @@ def load_session():
     except:
         return False
 # ========== CẤU HÌNH ==========CÓ
-BOT_TOKEN = "8948961848:AAHBvyAW4k13-1UqFLO_AFnrBUXc0CYUs-4"
-EMAIL = "gohan@gmail.com"
-PASSWORD = "Go123456"
+BOT_TOKEN = "8930029347:AAHnNFIRybvlZkWf5MnTic-xXuhQdBkhy4I"
+EMAIL = "779@gmail.com"
+PASSWORD = "abc12345"
 BASE_URL = "https://veloragame.com"
 CHECK_INTERVAL = 25
-ADMIN_IDS = [5180190297, 7580300851]  # Danh sách admin user ID
+ADMIN_IDS = [5180190297, 8076250181]  # Danh sách admin user ID
 WITHDRAW_FEE_PERCENT = 15
 WITHDRAW_FIXED_FEE = 5000
 

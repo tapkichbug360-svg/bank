@@ -77,7 +77,7 @@ PENDING_USERS_FILE = "pending_users.json"
 pending_users = []  # Lưu user đang chờ duyệt
 WITHDRAW_BANK_FILE = "withdraw_bank.json"
 user_withdraw_banks = {}  # {user_id: [{'bank': 'MSB', 'stk': '123', 'name': 'TRAN VAN A'}]}
-
+#
 # ========== BIẾN TOÀN CỤC ==========
 session = requests.Session()
 csrf_token = None

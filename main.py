@@ -386,10 +386,10 @@ def get_withdraw_amount_menu(user_id, bank_index=None):
     
     keyboard = [
         [InlineKeyboardButton(f"💰 Số dư: {balance:,.0f} VND", callback_data="noop")],
-        [InlineKeyboardButton("💵 100,000 VND", callback_data=f"withdraw_100000{bank_suffix}"),
-         InlineKeyboardButton("💵 200,000 VND", callback_data=f"withdraw_200000{bank_suffix}")],
-        [InlineKeyboardButton("💵 500,000 VND", callback_data=f"withdraw_500000{bank_suffix}"),
-         InlineKeyboardButton("💵 1,000,000 VND", callback_data=f"withdraw_1000000{bank_suffix}")],
+        [InlineKeyboardButton("💵 200,000 VND", callback_data=f"withdraw_200000{bank_suffix}"),
+        InlineKeyboardButton("💵 500,000 VND", callback_data=f"withdraw_500000{bank_suffix}")],
+        [InlineKeyboardButton("💵 1,000,000 VND", callback_data=f"withdraw_1000000{bank_suffix}"),
+        InlineKeyboardButton("💵 2,000,000 VND", callback_data=f"withdraw_2000000{bank_suffix}")],
         [InlineKeyboardButton("✏️ Nhập số tiền", callback_data=f"withdraw_custom{bank_suffix}")],
         [InlineKeyboardButton("🔙 Quay lại", callback_data="menu_main")]
     ]
@@ -851,9 +851,6 @@ async def check_for_new_payments_async(html):
     
     # ========== 1. KIỂM TRA TRONG DANH SÁCH ORDERS (TUẦN TỰ - NHANH) ==========
     for order_code, order_info in tracking_orders.items():
-        if order_info.get('status') == 'paid':
-            continue
-        
         # Bỏ qua đơn quá 24 giờ
         created_at = order_info.get('created_at')
         if created_at:
@@ -864,6 +861,17 @@ async def check_for_new_payments_async(html):
                     print(f"⏰ Đơn {order_code} đã quá 24 giờ ({hours_ago:.1f}h), bỏ qua kiểm tra")
                     tracking_orders[order_code]['status'] = 'expired'
                     save_tracking()
+                    continue
+            except:
+                pass
+        
+        # Kiểm tra nếu đã gửi thông báo trong 30 giây gần đây (tránh spam)
+        last_notify = order_info.get('last_notify_time')
+        if last_notify:
+            try:
+                last_time = datetime.strptime(last_notify, '%Y-%m-%d %H:%M:%S')
+                if (datetime.now() - last_time).seconds < 30:
+                    print(f"⏰ Bỏ qua {order_code} - đã gửi thông báo trong 30 giây")
                     continue
             except:
                 pass
@@ -1066,12 +1074,17 @@ async def process_payment(order_code, order_info, actual_amount):
         'customer_name': order_info.get('customer_name', 'N/A')
     })
     
+    # Đếm số lần nhận tiền
+    if 'paid_count' not in tracking_orders[order_code]:
+        tracking_orders[order_code]['paid_count'] = 0
+    tracking_orders[order_code]['paid_count'] += 1
+    
     # Cập nhật trạng thái đơn hàng
     tracking_orders[order_code]['status'] = 'paid'
     tracking_orders[order_code]['paid_amount'] = actual_amount
     tracking_orders[order_code]['paid_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    print(f"💰 {order_code} - {actual_amount:,} VND")
+    print(f"💰 {order_code} - {actual_amount:,} VND (lần thứ {tracking_orders[order_code]['paid_count']})")
     print(f"   User {user_id}: {old_balance:,} → {new_balance:,} VND")
     
     # Gửi thông báo bất đồng bộ
@@ -1195,6 +1208,10 @@ async def check_for_new_payments(html):
 async def send_telegram_notification_async(user_id, order_code, amount, order_info, new_balance):
     """Gửi thông báo khi có tiền về - bất đồng bộ, gửi song song"""
     try:
+        # Cập nhật thời gian gửi thông báo cuối cùng
+        tracking_orders[order_code]['last_notify_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        save_tracking()
+        
         # 1. TIN NHẮN CHO USER
         user_message = (
             f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> CÓ TIỀN VỀ! <tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji>\n\n"
@@ -1242,7 +1259,8 @@ async def send_telegram_notification_async(user_id, order_code, amount, order_in
         # GỬI TẤT CẢ CÙNG LÚC
         await asyncio.gather(*tasks)
         
-        print(f"📨 Đã gửi thông báo đến user {user_id} và {len(ADMIN_IDS)} admin")
+        paid_count = tracking_orders[order_code].get('paid_count', 1)
+        print(f"📨 Đã gửi thông báo lần thứ {paid_count} đến user {user_id} và {len(ADMIN_IDS)} admin")
             
     except Exception as e:
         print(f"❌ Lỗi gửi: {e}")
@@ -1483,8 +1501,8 @@ def create_withdraw_request(user_id, amount, selected_bank_index=None):
     if amount > balance:
         return {'success': False, 'error': f'Số dư không đủ! Số dư hiện tại: {balance:,.0f} VND'}
     
-    if amount < 50000:
-        return {'success': False, 'error': 'Số tiền rút tối thiểu là 50,000 VND'}
+    if amount < 200000:
+        return {'success': False, 'error': 'Số tiền rút tối thiểu là 200,000 VND'}
     
     # Lấy thông tin tài khoản nhận tiền
     withdraw_bank_info = None
@@ -1904,7 +1922,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💰 Số dư hiện tại: {user_balance.get(user_id_str, {}).get('balance', 0):,.0f} VND\n"
                 f"💵 Phí rút: {WITHDRAW_FEE_PERCENT}% + {WITHDRAW_FIXED_FEE:,} VND\n\n"
                 f"📝 VUI LÒNG NHẬP SỐ TIỀN CẦN RÚT:\n"
-                f"✨ Ví dụ: 500000\n\n"
+                f"✨ Ví dụ: 2000000\n\n"
                 f"⏳ Gửi tin nhắn chứa số tiền để rút ngay!",
                 reply_markup=get_back_menu()
             )
@@ -2087,7 +2105,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )])
         
         # Kiểm tra số dư để hiển thị trạng thái rút tiền
-        if balance >= 50000:
+        if balance >= 200000:
             if banks:
                 keyboard.append([InlineKeyboardButton(
                     text="RÚT TIỀN",
@@ -2114,7 +2132,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )])
         
         # Tạo message phù hợp
-        if balance >= 50000:
+        if balance >= 200000:
             msg = (
                 f"<tg-emoji emoji-id='5373174941095050893'>💸</tg-emoji> RÚT TIỀN\n\n"
                 f"<tg-emoji emoji-id='5028746137645876535'>📊</tg-emoji> Số dư hiện tại: {balance:,.0f} VND\n"
@@ -2128,7 +2146,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"<tg-emoji emoji-id='5373174941095050893'>💸</tg-emoji> RÚT TIỀN\n\n"
                 f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Số dư của bạn ({balance:,.0f} VND) chưa đủ để rút!\n"
                 f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền rút tối thiểu: 50,000 VND\n"
-                f"<tg-emoji emoji-id='5422439311196834318'>💡</tg-emoji> Bạn cần thêm {(50000 - balance):,.0f} VND nữa để có thể rút.\n\n"
+                f"<tg-emoji emoji-id='5422439311196834318'>💡</tg-emoji> Bạn cần thêm {(2000000 - balance):,.0f} VND nữa để có thể rút.\n\n"
                 f"<tg-emoji emoji-id='5397782960512444700'>📌</tg-emoji> <b>Bạn vẫn có thể thêm tài khoản ngân hàng để sẵn sàng khi đủ tiền!</b>"
             )
 
@@ -2190,8 +2208,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text(
                     f"<tg-emoji emoji-id='5375312095346704820'>💸</tg-emoji> RÚT TIỀN\n\n"
                     f"<tg-emoji emoji-id='5197269100878907942'>📝</tg-emoji> Vui lòng nhập số tiền muốn rút (gửi tin nhắn chứa số tiền):\n"
-                    f"<tg-emoji emoji-id='5325547803936572038'>✨</tg-emoji> Ví dụ: 500000\n\n"
-                    f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền tối thiểu: 50,000 VND",
+                    f"<tg-emoji emoji-id='5325547803936572038'>✨</tg-emoji> Ví dụ: 200000\n\n"
+                    f"<tg-emoji emoji-id='5224257782013769471'>💰</tg-emoji> Số tiền tối thiểu: 200,000 VND",
                     parse_mode='HTML',
                     reply_markup=get_back_menu()
                 )
@@ -2697,9 +2715,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('pending_withdraw_amount')
         try:
             amount = int(text.replace('.', '').replace(',', ''))
-            if amount < 50000:
+            if amount < 200000:
                 await update.message.reply_text(
-                    f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Số tiền rút tối thiểu là 50,000 VND!",
+                    f"<tg-emoji emoji-id='5210952531676504517'>❌</tg-emoji> Số tiền rút tối thiểu là 200,000 VND!",
                     parse_mode='HTML',
                     reply_markup=get_back_menu()
                 )
@@ -2921,11 +2939,11 @@ async def withdraw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id_str = str(user_id)
     balance = user_balance.get(user_id_str, {}).get('balance', 0)
     
-    if balance < 50000:
+    if balance < 200000:
         await update.message.reply_text(
             f"💸 RÚT TIỀN\n\n"
             f"❌ Số dư của bạn ({balance:,.0f} VND) chưa đủ để rút!\n"
-            f"💰 Số tiền rút tối thiểu: 50,000 VND\n\n"
+            f"💰 Số tiền rút tối thiểu: 200,000 VND\n\n"
             f"💡 Hãy tạo thêm đơn hàng để tăng số dư!",
             reply_markup=get_back_menu()
         )

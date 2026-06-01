@@ -59,12 +59,12 @@ def load_session():
     except:
         return False
 # ========== CẤU HÌNH ==========CÓ
-BOT_TOKEN = "8930029347:AAHnNFIRybvlZkWf5MnTic-xXuhQdBkhy4I"
-EMAIL = "779@gmail.com"
-PASSWORD = "abc12345"
+BOT_TOKEN = "8096935599:AAG7afosjYkCohTZ35Ng1YhhV6u1y5gmDsI"
+EMAIL = "Gohan@gmail.com"
+PASSWORD = "Go123456"
 BASE_URL = "https://veloragame.com"
 CHECK_INTERVAL = 25
-ADMIN_IDS = [5180190297, 8076250181]  # Danh sách admin user ID
+ADMIN_IDS = [5180190297, 6448523574]  # Danh sách admin user ID
 WITHDRAW_FEE_PERCENT = 15
 WITHDRAW_FIXED_FEE = 5000
 
@@ -1301,7 +1301,7 @@ async def create_virtual_account(customer_name, bank_name="MSB", user_id=None):
             'order_code': order_code,
             'napas_display_name': customer_name.upper(),
             'amount': '1000',
-            'collaborator_id': '1326',
+            'collaborator_id': '1315',
             'expires_in_days': '1'
         }
         print(f"📦 Data: {data}")
